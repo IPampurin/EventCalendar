@@ -1,0 +1,2 @@
+// интерфейс БД
+package service

@@ -1,0 +1,2 @@
+// общая конфигурация
+package configuration
