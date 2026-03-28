@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	nethttp "net/http"
 	"time"
 
@@ -40,7 +41,7 @@ func NewServer(cfg *configuration.Config) *Server {
 // Addr - адрес прослушивания в формате host:port
 func (s *Server) Addr() string {
 
-	return s.cfg.HTTP.Host + s.cfg.HTTP.Port
+	return fmt.Sprintf("%s:%s", s.cfg.HTTP.Host, s.cfg.HTTP.Port)
 }
 
 // Run - ListenAndServe до отмены ctx, затем Shutdown с таймаутом из конфига

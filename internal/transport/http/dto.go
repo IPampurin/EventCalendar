@@ -34,8 +34,8 @@ type DeleteEventRequest struct {
 
 // EventsForPeriodQuery - параметры GET /events_for_day|week|month (query string)
 type EventsForPeriodQuery struct {
-	UserID int64  `json:"user_id"` // user_id=...
-	Date   string `json:"date"`    // date=YYYY-MM-DD - якорная дата для дня/недели/месяца (TZ из конфига)
+	UserID int64  `form:"user_id"` // user_id=...
+	Date   string `form:"date"`    // date=YYYY-MM-DD - якорная дата для дня/недели/месяца (TZ из конфига)
 }
 
 // ответы (обёртка под задание: успех - result, ошибка бизнес-логики - error)

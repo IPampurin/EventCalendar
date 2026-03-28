@@ -89,8 +89,6 @@ func Load() (Config, error) {
 		},
 	}
 
-	cfg.HTTP.Port = ":" + cfg.HTTP.Port
-
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -104,7 +102,7 @@ func (c *Config) Validate() error {
 	if c.HTTP.Host == "" {
 		return fmt.Errorf("configuration: не задан хост сервера (HTTP_HOST)")
 	}
-	if c.HTTP.Port == "" || c.HTTP.Port == ":" {
+	if c.HTTP.Port == "" {
 		return fmt.Errorf("configuration: не задан порт сервера (HTTP_PORT)")
 	}
 	if _, err := time.LoadLocation(c.App.Timezone); err != nil {
