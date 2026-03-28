@@ -7,84 +7,44 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/IPampurin/EvantCalendar/pkg/server"
+	"github.com/IPampurin/EventCalendar/internal/configuration"
+	calendarhttp "github.com/IPampurin/EventCalendar/internal/transport/http"
 )
 
 func main() {
 
-	// cоздаём контекст
+	// загружаем конфигурацию
+	cfg, err := configuration.Load()
+	if err != nil {
+		slog.Error("ошибка конфигурации", "error", err)
+		os.Exit(1)
+	}
+
+	// инициализируем логгер
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(log)
+
+	// корневой контекст
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// запускаем горутину обработки сигналов
+	// запускаем горутину обработки сигналов SIGINT/SIGTERM
 	go signalHandler(ctx, cancel)
 
-	/*
-		// считываем .env файл
-		cfg, err := configuration.ReadConfig()
-		if err != nil {
-			log.Fatalf("Ошибка загрузки конфигурации: %v", err)
-		}
-	*/
-
-	// настраиваем логгер
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-	slog.SetDefault(logger)
-
-	/*
-		// получаем экземпляр БД
-		storageDB, err := db.InitDB(ctx, &cfg.DB, appLogger)
-		if err != nil {
-			appLogger.Error("ошибка подключения к БД", "error", err)
-			return
-		}
-		defer func() { _ = db.CloseDB(storageDB) }()
-	*/
-
-	/*
-		// получаем экземпляр zSet и канал для передачи просроченных броней из ZSet в брокер
-		clientZSet, zSetBrokerCh, err := zSet.InitZSet(ctx, &cfg.ZSet, appLogger)
-		if err != nil {
-			appLogger.Error("ошибка инициализации ZSET", "error", err)
-			return
-		}
-	*/
-
-	/*
-		// запускаем брокер и получаем канал передачи просроченных броней из брокера обработчику
-		broker, err := broker.InitBroker(ctx, &cfg.Broker, zSetBrokerCh, appLogger)
-		if err != nil {
-			appLogger.Error("ошибка подключения к брокеру сообщений", "error", err)
-			return
-		}
-		defer broker.Close()
-	*/
-
-	/*
-		// получаем экземпляр слоя бизнес-логики
-		service := service.InitService(ctx, storageDB, clientZSet)
-	*/
-
-	/*
-		// получаем обработчик просроченных броней
-		worker := overdueworker.InitWorker(ctx, broker, service, appLogger)
-		defer worker.Stop()
-	*/
-
-	// запускаем сервер
-	err := server.Run(ctx, &cfg.Server)
-	if err != nil {
-		//	appLogger.Error("Ошибка сервера", "error", err)
-		cancel()
-		return
+	// создаем и запускаем HTTP-сервер
+	srv := calendarhttp.NewServer(&cfg)
+	slog.Info("запуск HTTP", "addr", srv.Addr())
+	if err := srv.Run(ctx); err != nil {
+		slog.Error("ошибка HTTP-сервера", "error", err)
+		os.Exit(1)
 	}
 
-	// appLogger.Info("Приложение корректно завершено")
+	slog.Info("HTTP-сервер корректно остановлен")
 }
 
-// signalHandler обрабатывет сигналы отмены
+// signalHandler обрабатывает сигналы отмены
 func signalHandler(ctx context.Context, cancel context.CancelFunc) {
 
 	sigChan := make(chan os.Signal, 1)

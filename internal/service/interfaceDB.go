@@ -13,7 +13,7 @@ import (
 type EventRepository interface {
 
 	// Create - вставка новой записи
-	Create(ctx context.Context, e *domain.Event) (int, error)
+	Create(ctx context.Context, e *domain.Event) error
 
 	// Update - обновление существующего события по ID (ожидается проверка владельца через UserID в e)
 	Update(ctx context.Context, e *domain.Event) error
@@ -26,7 +26,7 @@ type EventRepository interface {
 
 	// ListBetween - события пользователя, у которых интервал пересекается с [start, end) в смысле хранения (UTC)
 	// (границы day/week/month считает сервис и передаёт start/end сюда)
-	ListBetween(ctx context.Context, userID int64, start, end time.Time) ([]domain.Event, error)
+	ListBetween(ctx context.Context, userID int64, start, end time.Time) ([]*domain.Event, error)
 
 	// ArchiveOlderThan - перенос/пометка архивом событий старее cutoff (возвращает число обработанных записей)
 	ArchiveOlderThan(ctx context.Context, cutoff time.Time) (archived int, err error)
