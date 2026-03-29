@@ -18,4 +18,5 @@ COPY --from=builder /app/EventCalendar .
 COPY web/ ./web/
 
 COPY .env .env
+
 CMD ["./EventCalendar"]

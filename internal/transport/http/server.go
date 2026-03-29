@@ -26,6 +26,7 @@ func NewServer(cfg *configuration.Config, svc *service.CalendarService, logger s
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(LoggingMiddleware(logger))
 
 	h := NewHandler(svc, logger)
 	s := &Server{
@@ -34,6 +35,7 @@ func NewServer(cfg *configuration.Config, svc *service.CalendarService, logger s
 		handler: h,
 	}
 	s.registerRoutes()
+
 	return s
 }
 
