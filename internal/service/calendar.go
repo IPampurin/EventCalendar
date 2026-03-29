@@ -221,3 +221,10 @@ func needReschedule(old, new *domain.Event) bool {
 	// оба не nil
 	return !old.ReminderAt.Equal(*new.ReminderAt)
 }
+
+// GetArchiveEvents возвращает архивные события пользователя с пагинацией
+func (s *CalendarService) GetArchiveEvents(ctx context.Context, userID int64, limit, offset int) ([]*domain.ArchiveEvent, error) {
+
+	// предполагаем, что у репозитория есть метод GetAllArchive
+	return s.repo.GetAllArchive(ctx, userID, limit, offset)
+}

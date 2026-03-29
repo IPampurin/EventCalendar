@@ -30,4 +30,7 @@ type EventRepository interface {
 
 	// ArchiveOlderThan - помечает архивом события, у которых «конец» раньше cutoff; archived_at и updated_at = mark (задаёт сервис)
 	ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (archived int, err error)
+
+	// GetAllArchive получение всех архивных событий (с пагинацией)
+	GetAllArchive(ctx context.Context, userID int64, limit, offset int) ([]*domain.ArchiveEvent, error)
 }

@@ -273,3 +273,31 @@ func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
 		ReminderAt:  reminderAt,
 	}, nil
 }
+
+// getArchiveEvents GET /archive_events
+func (h *Handler) getArchiveEvents(c *gin.Context) {
+
+	var query ArchiveEventsQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
+		return
+	}
+	if query.UserID == 0 {
+		respondError(c, fmt.Errorf("user_id обязателен"))
+		return
+	}
+	if query.Limit <= 0 {
+		query.Limit = 50
+	}
+	if query.Offset < 0 {
+		query.Offset = 0
+	}
+
+	events, err := h.svc.GetArchiveEvents(c.Request.Context(), query.UserID, query.Limit, query.Offset)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	respondSuccess(c, toArchiveEventResponses(events))
+}

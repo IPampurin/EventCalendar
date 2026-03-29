@@ -4,8 +4,6 @@ package http
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/IPampurin/EventCalendar/internal/domain"
 )
 
 // входящие запросы (тело JSON, Content-Type: application/json)
@@ -43,6 +41,13 @@ type EventsForPeriodQuery struct {
 	Date   string `form:"date"`    // date=YYYY-MM-DD - якорная дата для дня/недели/месяца (TZ из конфига)
 }
 
+// ArchiveEventsQuery - параметры GET /archive_events
+type ArchiveEventsQuery struct {
+	UserID int64 `form:"user_id"`          // обязательный id пользователя
+	Limit  int   `form:"limit,default=50"` // количество записей на странице
+	Offset int   `form:"offset,default=0"` // смещение для пагинации
+}
+
 // ответы (обёртка под задание: успех - result, ошибка бизнес-логики - error)
 
 // SuccessResponse - JSON при HTTP 200: {"result": ...}
@@ -55,7 +60,7 @@ type ErrorResponse struct {
 	Error string `json:"error"` // текст ошибки для клиента
 }
 
-// EventResponse - структура для ответа фронту
+// EventResponse - ответ для активного события
 type EventResponse struct {
 	ID          string     `json:"id"`
 	UserID      int64      `json:"user_id"`
@@ -66,33 +71,18 @@ type EventResponse struct {
 	ReminderAt  *time.Time `json:"reminder_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
-	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
 }
 
-// toEventResponse преобразует доменную модель в модель dto
-func toEventResponse(e *domain.Event) EventResponse {
-
-	return EventResponse{
-		ID:          e.ID.String(),
-		UserID:      e.UserID,
-		Title:       e.Title,
-		Description: e.Description,
-		StartAt:     e.StartAt,
-		EndAt:       e.EndAt,
-		ReminderAt:  e.ReminderAt,
-		CreatedAt:   e.CreatedAt,
-		UpdatedAt:   e.UpdatedAt,
-		ArchivedAt:  e.ArchivedAt,
-	}
-}
-
-// toEventResponses преобразует слайс доменных моделей в слайс моделей dto
-func toEventResponses(events []*domain.Event) []EventResponse {
-
-	result := make([]EventResponse, len(events))
-	for i, e := range events {
-		result[i] = toEventResponse(e)
-	}
-
-	return result
+// ArchiveEventResponse - ответ для архивного события
+type ArchiveEventResponse struct {
+	ID          string     `json:"id"`
+	UserID      int64      `json:"user_id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	StartAt     time.Time  `json:"start_at"`
+	EndAt       *time.Time `json:"end_at,omitempty"`
+	ReminderAt  *time.Time `json:"reminder_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	ArchivedAt  time.Time  `json:"archived_at"`
 }

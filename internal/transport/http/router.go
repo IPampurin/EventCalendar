@@ -7,21 +7,24 @@ func (s *Server) registerRoutes() {
 	r := s.engine
 	h := s.handler
 
-	// POST /create_event - создание события (тело JSON: CreateEventRequest)
+	// POST /create_event - создание события
 	r.POST("/create_event", h.createEvent)
 
-	// POST /update_event - обновление события (тело JSON: UpdateEventRequest)
+	// POST /update_event - обновление события
 	r.POST("/update_event", h.updateEvent)
 
-	// POST /delete_event - удаление события (тело JSON: DeleteEventRequest)
+	// POST /delete_event - удаление события
 	r.POST("/delete_event", h.deleteEvent)
 
-	// GET /events_for_day - все события пользователя на календарный день (query: user_id, date)
+	// GET /events_for_day - все активные события пользователя на день
 	r.GET("/events_for_day", h.eventsForDay)
 
-	// GET /events_for_week - события на неделю от якорной даты (query: user_id, date)
+	// GET /events_for_week - активные события на неделю
 	r.GET("/events_for_week", h.eventsForWeek)
 
-	// GET /events_for_month - события на месяц от якорной даты (query: user_id, date)
+	// GET /events_for_month - активные события на месяц
 	r.GET("/events_for_month", h.eventsForMonth)
+
+	// GET /archive_events - получение архива пользователя (пагинация)
+	r.GET("/archive_events", h.getArchiveEvents)
 }

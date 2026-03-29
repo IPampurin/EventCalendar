@@ -3,7 +3,8 @@ const API = {
     create: '/create_event',
     update: '/update_event',
     delete: '/delete_event',
-    eventsForMonth: '/events_for_month'
+    eventsForMonth: '/events_for_month',
+    archive: '/archive_events'
 };
 
 let autoRefreshTimer = null;
@@ -48,7 +49,7 @@ function resetRefreshTimer() {
     }, REFRESH_INTERVAL_MS);
 }
 
-// Исправлено: возвращает локальную дату в формате YYYY-MM-DD
+// Возвращает локальную дату в формате YYYY-MM-DD
 function getCurrentDate() {
     const now = new Date();
     const year = now.getFullYear();
@@ -57,6 +58,7 @@ function getCurrentDate() {
     return `${year}-${month}-${day}`;
 }
 
+// Загрузка активных событий за текущий месяц
 async function loadEvents() {
     const userId = document.getElementById('user_id').value;
     const date = getCurrentDate();
@@ -68,20 +70,14 @@ async function loadEvents() {
             throw new Error(`HTTP ${response.status}`);
         }
         const data = await response.json();
-        console.log('=== /events_for_month response ===', data);
-        
         let events = [];
         if (data.result && Array.isArray(data.result)) {
             events = data.result;
         } else if (Array.isArray(data)) {
             events = data;
-        } else if (data.events && Array.isArray(data.events)) {
-            events = data.events;
         } else {
-            console.warn('Неизвестный формат ответа:', data);
+            console.warn('Неизвестный формат ответа активных событий:', data);
         }
-        
-        console.log('Extracted events count:', events.length);
         renderEventsTable(events);
     } catch (error) {
         console.error('Ошибка загрузки событий:', error);
@@ -89,6 +85,7 @@ async function loadEvents() {
     }
 }
 
+// Отрисовка таблицы активных событий
 function renderEventsTable(events) {
     const tbody = document.getElementById('eventsBody');
     if (!events.length) {
@@ -123,6 +120,59 @@ function renderEventsTable(events) {
     }).join('');
 }
 
+// Загрузка архивных событий
+async function loadArchive() {
+    const userId = document.getElementById('user_id').value;
+    const url = `${API.archive}?user_id=${userId}&limit=100&offset=0`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        let events = [];
+        if (data.result && Array.isArray(data.result)) {
+            events = data.result;
+        } else if (Array.isArray(data)) {
+            events = data;
+        } else {
+            console.warn('Неизвестный формат ответа архива:', data);
+        }
+        renderArchiveTable(events);
+    } catch (error) {
+        console.error('Ошибка загрузки архива:', error);
+        document.getElementById('archiveBody').innerHTML = '<tr><td colspan="7" style="text-align:center;">Ошибка загрузки архива</td></tr>';
+    }
+}
+
+// Отрисовка таблицы архива
+function renderArchiveTable(events) {
+    const tbody = document.getElementById('archiveBody');
+    if (!events.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Архив пуст</td></tr>';
+        return;
+    }
+    tbody.innerHTML = events.map(e => {
+        const start = formatDateTime(e.start_at);
+        const end = formatDateTime(e.end_at);
+        const reminder = formatDateTime(e.reminder_at);
+        const archived = formatDateTime(e.archived_at);
+        const description = e.description || '';
+        return `
+            <tr>
+                <td title="${e.id}">${shortenUid(e.id)}</td>
+                <td>${escapeHtml(e.title)}</td>
+                <td title="${escapeHtml(description)}">${truncate(description, 30)}</td>
+                <td>${start}</td>
+                <td>${end}</td>
+                <td>${reminder}</td>
+                <td>${archived}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Создание или обновление события
 document.getElementById('eventForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const eventId = document.getElementById('event_id').value;
@@ -154,7 +204,6 @@ document.getElementById('eventForm').addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        console.log(`Response status ${response.status} for ${url}`);
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.error || `HTTP ${response.status}`);
@@ -167,6 +216,7 @@ document.getElementById('eventForm').addEventListener('submit', async (e) => {
     }
 });
 
+// Редактирование события
 async function editEvent(id) {
     const userId = document.getElementById('user_id').value;
     const date = getCurrentDate();
@@ -205,6 +255,7 @@ function resetForm() {
     document.getElementById('cancelEditBtn').style.display = 'none';
 }
 
+// Удаление события
 async function deleteEventUI(id) {
     if (!confirm('Удалить событие?')) return;
     const userId = parseInt(document.getElementById('user_id').value, 10);
@@ -225,14 +276,22 @@ async function deleteEventUI(id) {
     }
 }
 
-document.getElementById('showArchivedBtn').addEventListener('click', () => {
-    document.getElementById('archiveContainer').style.display = 'block';
+// Показать/скрыть архив
+document.getElementById('showArchivedBtn').addEventListener('click', async () => {
+    const container = document.getElementById('archiveContainer');
+    if (container.style.display === 'none') {
+        await loadArchive();
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
 });
 document.getElementById('hideArchiveBtn')?.addEventListener('click', () => {
     document.getElementById('archiveContainer').style.display = 'none';
 });
 document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit);
 
+// Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     loadEvents();
     resetRefreshTimer();
@@ -241,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.copyToClipboard = copyToClipboard;
 });
 
+// Вспомогательные функции
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, function(m) {
