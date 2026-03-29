@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/IPampurin/EventCalendar/internal/configuration"
+	"github.com/IPampurin/EventCalendar/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,21 +21,19 @@ type Server struct {
 }
 
 // NewServer - создаёт движок Gin, регистрирует маршруты календаря
-func NewServer(cfg *configuration.Config) *Server {
+func NewServer(cfg *configuration.Config, svc *service.CalendarService, logger service.Logger) *Server {
 
 	gin.SetMode(gin.ReleaseMode)
-
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	h := NewHandler()
+	h := NewHandler(svc, logger)
 	s := &Server{
 		cfg:     cfg,
 		engine:  r,
 		handler: h,
 	}
 	s.registerRoutes()
-
 	return s
 }
 
