@@ -13,6 +13,7 @@ func LoggingMiddleware(logger service.Logger) gin.HandlerFunc {
 
 		start := time.Now()
 		c.Next()
+
 		logger.Info("HTTP request",
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,

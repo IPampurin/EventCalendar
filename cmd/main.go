@@ -45,7 +45,7 @@ func main() {
 	defer db.Close()
 
 	// миграции
-	if err := sqlDB.Migration(ctx, db); err != nil {
+	if err := sqlDB.Migrations(ctx, db); err != nil {
 		appLogger.Error("ошибка миграций", "error", err)
 		os.Exit(1)
 	}

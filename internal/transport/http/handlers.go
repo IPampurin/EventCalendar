@@ -20,6 +20,7 @@ type Handler struct {
 }
 
 func NewHandler(svc *service.CalendarService, logger service.Logger) *Handler {
+
 	return &Handler{
 		svc:    svc,
 		logger: logger,
@@ -28,32 +29,35 @@ func NewHandler(svc *service.CalendarService, logger service.Logger) *Handler {
 
 // успешный ответ
 func respondSuccess(c *gin.Context, data interface{}) {
+
 	c.JSON(http.StatusOK, gin.H{"result": data})
 }
 
 // ошибка с соответствующим статусом
 func respondError(c *gin.Context, err error) {
+
 	var status int
 	var message string
 
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		status = http.StatusServiceUnavailable // 503 по заданию
+		status = http.StatusServiceUnavailable // 503
 		message = "событие не найдено"
 	case errors.Is(err, context.DeadlineExceeded):
 		status = http.StatusInternalServerError
 		message = "таймаут операции"
 	default:
-		// Для всех остальных ошибок (в т.ч. валидации) — 400
-		// Но бизнес-ошибки типа "не найден" мы уже обработали.
+		// для всех остальных ошибок (в т.ч. валидации) - 400
 		status = http.StatusBadRequest
 		message = err.Error()
 	}
+
 	c.JSON(status, gin.H{"error": message})
 }
 
 // createEvent POST /create_event
 func (h *Handler) createEvent(c *gin.Context) {
+
 	var req CreateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, fmt.Errorf("неверный JSON: %w", err))
@@ -71,11 +75,12 @@ func (h *Handler) createEvent(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, gin.H{"id": event.ID.String()})
+	c.JSON(http.StatusCreated, gin.H{"result": gin.H{"id": event.ID.String()}})
 }
 
 // updateEvent POST /update_event
 func (h *Handler) updateEvent(c *gin.Context) {
+
 	var req UpdateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, fmt.Errorf("неверный JSON: %w", err))
@@ -98,6 +103,7 @@ func (h *Handler) updateEvent(c *gin.Context) {
 
 // deleteEvent POST /delete_event
 func (h *Handler) deleteEvent(c *gin.Context) {
+
 	var req DeleteEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, fmt.Errorf("неверный JSON: %w", err))
@@ -120,6 +126,7 @@ func (h *Handler) deleteEvent(c *gin.Context) {
 
 // eventsForDay GET /events_for_day
 func (h *Handler) eventsForDay(c *gin.Context) {
+
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
@@ -138,11 +145,12 @@ func (h *Handler) eventsForDay(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, events)
+	respondSuccess(c, toEventResponses(events))
 }
 
 // eventsForWeek GET /events_for_week
 func (h *Handler) eventsForWeek(c *gin.Context) {
+
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
@@ -161,11 +169,12 @@ func (h *Handler) eventsForWeek(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, events)
+	respondSuccess(c, toEventResponses(events))
 }
 
 // eventsForMonth GET /events_for_month
 func (h *Handler) eventsForMonth(c *gin.Context) {
+
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
@@ -184,15 +193,17 @@ func (h *Handler) eventsForMonth(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, events)
+	respondSuccess(c, toEventResponses(events))
 }
 
 // toDomain создаёт domain.Event из CreateEventRequest
 func (r CreateEventRequest) toDomain() (*domain.Event, error) {
+
 	startAt, err := time.Parse(time.RFC3339, r.StartAt)
 	if err != nil {
 		return nil, fmt.Errorf("неверный формат start_at (требуется RFC3339): %w", err)
 	}
+
 	var endAt *time.Time
 	if r.EndAt != nil && *r.EndAt != "" {
 		t, err := time.Parse(time.RFC3339, *r.EndAt)
@@ -201,6 +212,7 @@ func (r CreateEventRequest) toDomain() (*domain.Event, error) {
 		}
 		endAt = &t
 	}
+
 	var reminderAt *time.Time
 	if r.ReminderAt != nil && *r.ReminderAt != "" {
 		t, err := time.Parse(time.RFC3339, *r.ReminderAt)
@@ -209,6 +221,7 @@ func (r CreateEventRequest) toDomain() (*domain.Event, error) {
 		}
 		reminderAt = &t
 	}
+
 	return &domain.Event{
 		UserID:      r.UserID,
 		Title:       r.Title,
@@ -221,14 +234,17 @@ func (r CreateEventRequest) toDomain() (*domain.Event, error) {
 
 // toDomain для UpdateEventRequest
 func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
+
 	eventID, err := uuid.Parse(r.EventID)
 	if err != nil {
 		return nil, fmt.Errorf("неверный event_id: %w", err)
 	}
+
 	startAt, err := time.Parse(time.RFC3339, r.StartAt)
 	if err != nil {
 		return nil, fmt.Errorf("неверный формат start_at: %w", err)
 	}
+
 	var endAt *time.Time
 	if r.EndAt != nil && *r.EndAt != "" {
 		t, err := time.Parse(time.RFC3339, *r.EndAt)
@@ -237,6 +253,7 @@ func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
 		}
 		endAt = &t
 	}
+
 	var reminderAt *time.Time
 	if r.ReminderAt != nil && *r.ReminderAt != "" {
 		t, err := time.Parse(time.RFC3339, *r.ReminderAt)
@@ -245,6 +262,7 @@ func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
 		}
 		reminderAt = &t
 	}
+
 	return &domain.Event{
 		ID:          eventID,
 		UserID:      r.UserID,

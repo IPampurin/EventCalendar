@@ -17,6 +17,11 @@ const (
 	connMaxLifetime = 30 * time.Minute
 )
 
+// Store реализует интерфейс service.EventRepository
+type Store struct {
+	db *sql.DB
+}
+
 // StartDB открывает пул соединений к Postgres через database/sql и драйвер pgx/stdlib
 func StartDB(ctx context.Context, cfg *configuration.DBConfig) (*sql.DB, error) {
 

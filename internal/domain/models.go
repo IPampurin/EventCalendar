@@ -14,11 +14,24 @@ type Event struct {
 	Title       string     // название события
 	Description string     // описание события
 	StartAt     time.Time  // начало события
-	EndAt       *time.Time // окончание события; nil - точечное событие без длительности
-	ReminderAt  *time.Time // момент напоминания; nil - напоминание не задано
+	EndAt       *time.Time // окончание события, nil - точечное событие без длительности
+	ReminderAt  *time.Time // момент когда надо отправить напоминание, nil - напоминание не нужно
 	CreatedAt   time.Time  // время создания записи
 	UpdatedAt   time.Time  // время последнего обновления
-	ArchivedAt  *time.Time // время архивации; nil - событие активно
+}
+
+// ArchiveEvent - архивное событие
+type ArchiveEvent struct {
+	ID          uuid.UUID  // uid события
+	UserID      int64      // id пользователя, к которому относится событие
+	Title       string     // название события
+	Description string     // описание события
+	StartAt     time.Time  // начало события
+	EndAt       *time.Time // окончание события, nil - точечное событие без длительности
+	ReminderAt  *time.Time // момент когда надо отправить напоминание, nil - напоминание не нужно
+	CreatedAt   time.Time  // время создания записи
+	UpdatedAt   time.Time  // время последнего обновления
+	ArchivedAt  time.Time  // время архивации
 }
 
 // ReminderTask - задача для напоминальщика (канал/планировщик)

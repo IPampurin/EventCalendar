@@ -28,6 +28,12 @@ func NewServer(cfg *configuration.Config, svc *service.CalendarService, logger s
 	r.Use(gin.Recovery())
 	r.Use(LoggingMiddleware(logger))
 
+	// раздача статики
+	r.Static("/static", "./web")
+	r.GET("/", func(c *gin.Context) {
+		c.File("./web/index.html")
+	})
+
 	h := NewHandler(svc, logger)
 	s := &Server{
 		cfg:     cfg,

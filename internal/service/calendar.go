@@ -171,6 +171,14 @@ func (s *CalendarService) GetEventsForMonth(ctx context.Context, userID int64, d
 	start := time.Date(localDate.Year(), localDate.Month(), 1, 0, 0, 0, 0, s.tz).UTC()
 	end := start.AddDate(0, 1, 0).UTC()
 
+	s.logger.Info("GetEventsForMonth",
+		"userID", userID,
+		"input_date", date,
+		"localDate", localDate,
+		"start_utc", start,
+		"end_utc", end,
+	)
+
 	return s.repo.ListBetween(ctx, userID, start, end)
 }
 
