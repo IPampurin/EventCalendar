@@ -2,7 +2,6 @@
 package http
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -48,17 +47,7 @@ type ArchiveEventsQuery struct {
 	Offset int   `form:"offset,default=0"` // смещение для пагинации
 }
 
-// ответы (обёртка под задание: успех - result, ошибка бизнес-логики - error)
-
-// SuccessResponse - JSON при HTTP 200: {"result": ...}
-type SuccessResponse struct {
-	Result json.RawMessage `json:"result"` // содержимое зависит от эндпоинта (список событий, id и т.д.)
-}
-
-// ErrorResponse - JSON при ошибке: {"error": "..."}
-type ErrorResponse struct {
-	Error string `json:"error"` // текст ошибки для клиента
-}
+// ответы
 
 // EventResponse - ответ для активного события
 type EventResponse struct {

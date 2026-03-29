@@ -14,23 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// Handler обрабатывает HTTP-запросы для API календаря событий
 type Handler struct {
-	svc    *service.CalendarService
-	logger service.Logger
+	svc    *service.CalendarService // предоставляет методы для работы с событиями календаря
+	logger service.Logger           // используется для асинхронного логирования операций
 }
 
+// NewHandler возвращает сконфигурированный Handler
 func NewHandler(svc *service.CalendarService, logger service.Logger) *Handler {
 
 	return &Handler{
-		svc:    svc,
-		logger: logger,
+		svc:    svc,    // инъекция сервиса для делегирования бизнес-операций
+		logger: logger, // инъекция логгера для асинхронной записи логов через канал
 	}
-}
-
-// успешный ответ
-func respondSuccess(c *gin.Context, data interface{}) {
-
-	c.JSON(http.StatusOK, gin.H{"result": data})
 }
 
 // ошибка с соответствующим статусом
@@ -44,7 +40,7 @@ func respondError(c *gin.Context, err error) {
 		status = http.StatusServiceUnavailable // 503
 		message = "событие не найдено"
 	case errors.Is(err, context.DeadlineExceeded):
-		status = http.StatusInternalServerError
+		status = http.StatusInternalServerError // 500
 		message = "таймаут операции"
 	default:
 		// для всех остальных ошибок (в т.ч. валидации) - 400
@@ -75,6 +71,7 @@ func (h *Handler) createEvent(c *gin.Context) {
 		return
 	}
 
+	// 201 Created — ресурс создан
 	c.JSON(http.StatusCreated, gin.H{"result": gin.H{"id": event.ID.String()}})
 }
 
@@ -98,7 +95,8 @@ func (h *Handler) updateEvent(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, gin.H{"id": event.ID.String()})
+	// 200 OK — обновление успешно
+	c.JSON(http.StatusOK, gin.H{"result": gin.H{"id": event.ID.String()}})
 }
 
 // deleteEvent POST /delete_event
@@ -121,7 +119,8 @@ func (h *Handler) deleteEvent(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, gin.H{"status": "deleted"})
+	// 200 OK — удаление успешно
+	c.JSON(http.StatusOK, gin.H{"result": gin.H{"status": "deleted"}})
 }
 
 // eventsForDay GET /events_for_day
@@ -145,7 +144,8 @@ func (h *Handler) eventsForDay(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, toEventResponses(events))
+	// 200 OK — список событий
+	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
 }
 
 // eventsForWeek GET /events_for_week
@@ -169,7 +169,8 @@ func (h *Handler) eventsForWeek(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, toEventResponses(events))
+	// 200 OK — список событий
+	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
 }
 
 // eventsForMonth GET /events_for_month
@@ -193,7 +194,37 @@ func (h *Handler) eventsForMonth(c *gin.Context) {
 		return
 	}
 
-	respondSuccess(c, toEventResponses(events))
+	// 200 OK — список событий
+	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
+}
+
+// getArchiveEvents GET /archive_events
+func (h *Handler) getArchiveEvents(c *gin.Context) {
+
+	var query ArchiveEventsQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
+		return
+	}
+	if query.UserID == 0 {
+		respondError(c, fmt.Errorf("user_id обязателен"))
+		return
+	}
+	if query.Limit <= 0 {
+		query.Limit = 50
+	}
+	if query.Offset < 0 {
+		query.Offset = 0
+	}
+
+	events, err := h.svc.GetArchiveEvents(c.Request.Context(), query.UserID, query.Limit, query.Offset)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	// 200 OK — список архивных событий
+	c.JSON(http.StatusOK, gin.H{"result": toArchiveEventResponses(events)})
 }
 
 // toDomain создаёт domain.Event из CreateEventRequest
@@ -272,32 +303,4 @@ func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
 		EndAt:       endAt,
 		ReminderAt:  reminderAt,
 	}, nil
-}
-
-// getArchiveEvents GET /archive_events
-func (h *Handler) getArchiveEvents(c *gin.Context) {
-
-	var query ArchiveEventsQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
-		respondError(c, fmt.Errorf("неверные параметры запроса: %w", err))
-		return
-	}
-	if query.UserID == 0 {
-		respondError(c, fmt.Errorf("user_id обязателен"))
-		return
-	}
-	if query.Limit <= 0 {
-		query.Limit = 50
-	}
-	if query.Offset < 0 {
-		query.Offset = 0
-	}
-
-	events, err := h.svc.GetArchiveEvents(c.Request.Context(), query.UserID, query.Limit, query.Offset)
-	if err != nil {
-		respondError(c, err)
-		return
-	}
-
-	respondSuccess(c, toArchiveEventResponses(events))
 }

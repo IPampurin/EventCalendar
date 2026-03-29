@@ -10,7 +10,7 @@ import (
 
 // ReminderScheduler - постановка и отмена напоминаний без деталей реализации очереди
 type ReminderScheduler interface {
-	
+
 	// Schedule - зарегистрировать отправку напоминания в remindAt (идемпотентно по eventID при необходимости)
 	Schedule(ctx context.Context, task domain.ReminderTask) error
 

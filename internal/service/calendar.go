@@ -12,12 +12,12 @@ import (
 
 type CalendarService struct {
 	repo   EventRepository
-	sch    ReminderScheduler
+	rem    ReminderScheduler
 	logger Logger
 	tz     *time.Location // часовой пояс для расчётов дня/недели/месяца
 }
 
-func NewCalendarService(repo EventRepository, sch ReminderScheduler, logger Logger, tzName string) (*CalendarService, error) {
+func NewCalendarService(repo EventRepository, rem ReminderScheduler, logger Logger, tzName string) (*CalendarService, error) {
 
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
@@ -26,7 +26,7 @@ func NewCalendarService(repo EventRepository, sch ReminderScheduler, logger Logg
 
 	return &CalendarService{
 		repo:   repo,
-		sch:    sch,
+		rem:    rem,
 		logger: logger,
 		tz:     loc,
 	}, nil
@@ -58,7 +58,7 @@ func (s *CalendarService) Create(ctx context.Context, event *domain.Event) error
 			RemindAt: *event.ReminderAt,
 			Title:    event.Title,
 		}
-		if err := s.sch.Schedule(ctx, task); err != nil {
+		if err := s.rem.Schedule(ctx, task); err != nil {
 			s.logger.Error("не удалось запланировать напоминание", "event_id", event.ID, "error", err)
 			// ошибка планирования не должна отменять создание события
 		}
@@ -92,7 +92,7 @@ func (s *CalendarService) Update(ctx context.Context, event *domain.Event) error
 	if needReschedule(old, event) {
 		// отменяем старое
 		if old.ReminderAt != nil {
-			_ = s.sch.Cancel(ctx, event.ID)
+			_ = s.rem.Cancel(ctx, event.ID)
 		}
 		// планируем новое, если есть
 		if event.ReminderAt != nil {
@@ -102,7 +102,7 @@ func (s *CalendarService) Update(ctx context.Context, event *domain.Event) error
 				RemindAt: *event.ReminderAt,
 				Title:    event.Title,
 			}
-			if err := s.sch.Schedule(ctx, task); err != nil {
+			if err := s.rem.Schedule(ctx, task); err != nil {
 				s.logger.Error("не удалось перепланировать напоминание", "event_id", event.ID, "error", err)
 			}
 		}
@@ -119,7 +119,7 @@ func (s *CalendarService) Delete(ctx context.Context, userID int64, eventID uuid
 	// перед удалением отменяем напоминание, если было
 	event, err := s.repo.GetByID(ctx, userID, eventID)
 	if err == nil && event.ReminderAt != nil {
-		_ = s.sch.Cancel(ctx, eventID)
+		_ = s.rem.Cancel(ctx, eventID)
 	}
 
 	if err := s.repo.Delete(ctx, userID, eventID); err != nil {
@@ -171,55 +171,7 @@ func (s *CalendarService) GetEventsForMonth(ctx context.Context, userID int64, d
 	start := time.Date(localDate.Year(), localDate.Month(), 1, 0, 0, 0, 0, s.tz).UTC()
 	end := start.AddDate(0, 1, 0).UTC()
 
-	s.logger.Info("GetEventsForMonth",
-		"userID", userID,
-		"input_date", date,
-		"localDate", localDate,
-		"start_utc", start,
-		"end_utc", end,
-	)
-
 	return s.repo.ListBetween(ctx, userID, start, end)
-}
-
-// validateEvent выполняет базовую валидацию полей события
-func validateEvent(e *domain.Event) error {
-
-	if e.UserID == 0 {
-		return fmt.Errorf("user_id обязателен")
-	}
-	if e.Title == "" {
-		return fmt.Errorf("title не может быть пустым")
-	}
-	if e.StartAt.IsZero() {
-		return fmt.Errorf("start_at обязателен")
-	}
-	if e.EndAt != nil && e.EndAt.Before(e.StartAt) {
-		return fmt.Errorf("end_at не может быть раньше start_at")
-	}
-	if e.ReminderAt != nil && e.ReminderAt.Before(time.Now().UTC()) {
-		return fmt.Errorf("reminder_at не может быть в прошлом")
-	}
-
-	return nil
-}
-
-// needReschedule определяет, нужно ли перепланировать напоминание
-func needReschedule(old, new *domain.Event) bool {
-
-	// если напоминания совпадают по времени - можно не перепланировать
-	if old.ReminderAt == nil && new.ReminderAt == nil {
-		return false
-	}
-	if old.ReminderAt == nil && new.ReminderAt != nil {
-		return true
-	}
-	if old.ReminderAt != nil && new.ReminderAt == nil {
-		return true
-	}
-
-	// оба не nil
-	return !old.ReminderAt.Equal(*new.ReminderAt)
 }
 
 // GetArchiveEvents возвращает архивные события пользователя с пагинацией

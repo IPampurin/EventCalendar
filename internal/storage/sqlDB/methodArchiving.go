@@ -17,7 +17,7 @@ func (s *Store) ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (i
 	if err != nil {
 		return 0, fmt.Errorf("ошибка начала транзакции архивации: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// выбираем старые события
 	selectQuery := `SELECT id, 
