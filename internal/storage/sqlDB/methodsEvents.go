@@ -166,3 +166,40 @@ func (s *Store) ListBetween(ctx context.Context, userID int64, start, end time.T
 
 	return events, nil
 }
+
+// GetPendingReminders возвращает активные события с напоминанием в будущем
+func (s *Store) GetPendingReminders(ctx context.Context, now time.Time) ([]*domain.Event, error) {
+
+	query := `SELECT id, 
+	                 user_id, title, 
+					 description, 
+					 start_at, 
+					 end_at, 
+					 reminder_at, 
+					 created_at, 
+					 updated_at
+			    FROM events
+			   WHERE reminder_at IS NOT NULL 
+			         AND reminder_at > $1
+			   ORDER BY reminder_at`
+
+	rows, err := s.db.QueryContext(ctx, query, now)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выборки событий: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]*domain.Event, 0)
+	for rows.Next() {
+		dbEvent, err := s.scanEvent(rows)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
+		}
+		events = append(events, mapDBToEvent(*dbEvent))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка итерации: %w", err)
+	}
+
+	return events, nil
+}

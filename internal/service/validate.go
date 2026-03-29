@@ -20,11 +20,18 @@ func validateEvent(e *domain.Event) error {
 	if e.StartAt.IsZero() {
 		return fmt.Errorf("start_at обязателен")
 	}
+
+	// проверка хронологической последовательности ReminderAt -> StartAt -> EndAt
+	if e.ReminderAt != nil {
+		if e.ReminderAt.Before(time.Now().UTC()) {
+			return fmt.Errorf("reminder_at не может быть в прошлом")
+		}
+		if !e.ReminderAt.Before(e.StartAt) {
+			return fmt.Errorf("reminder_at должен быть раньше start_at")
+		}
+	}
 	if e.EndAt != nil && e.EndAt.Before(e.StartAt) {
 		return fmt.Errorf("end_at не может быть раньше start_at")
-	}
-	if e.ReminderAt != nil && e.ReminderAt.Before(time.Now().UTC()) {
-		return fmt.Errorf("reminder_at не может быть в прошлом")
 	}
 
 	return nil

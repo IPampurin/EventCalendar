@@ -53,15 +53,9 @@ func main() {
 	// репозиторий
 	repo := sqlDB.NewStore(db)
 
-	// планировщик напоминаний
-	reminderScheduler := scheduler.NewScheduler(appLogger, cfg.App.ReminderQueueSize)
-	reminderScheduler.Start()
-	defer reminderScheduler.Stop()
-
-	// при старте восстанавливаем ожидающие напоминания (TODO реализовать)
-	if err := reminderScheduler.RestorePending(ctx); err != nil {
-		appLogger.Error("ошибка восстановления напоминаний", "error", err)
-	}
+	// получаем запускаем фоном планировщик напоминаний
+	reminderScheduler := scheduler.NewScheduler(ctx, repo, appLogger, cfg.App.ReminderQueueSize)
+	go reminderScheduler.Run()
 
 	// сервис календаря
 	calendarSvc, err := service.NewCalendarService(repo, reminderScheduler, appLogger, cfg.App.Timezone)
@@ -70,17 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// архиватор
-	archiverWorker := archiver.NewArchiver(repo, appLogger, cfg.App.ArchiveEvery, cfg.App.ArchiveOlderThan)
-	go func() {
-		if err := archiverWorker.Run(ctx); err != nil {
-			appLogger.Error("архиватор остановлен с ошибкой", "error", err)
-		}
-	}()
-	defer archiverWorker.Stop()
+	// получаем и запускаем фоном архиватор
+	archiverWorker := archiver.NewArchiver(ctx, repo, appLogger, cfg.App.ArchiveEvery)
+	go archiverWorker.Run()
 
 	// HTTP-сервер
-	srv := calendarhttp.NewServer(&cfg, calendarSvc, appLogger)
+	srv := calendarhttp.NewServer(&cfg.HTTP, calendarSvc, appLogger)
 	appLogger.Info("запуск HTTP", "addr", srv.Addr())
 
 	if err := srv.Run(ctx); err != nil {

@@ -29,8 +29,11 @@ type EventRepository interface {
 	ListBetween(ctx context.Context, userID int64, start, end time.Time) ([]*domain.Event, error)
 
 	// ArchiveOlderThan - помечает архивом события, у которых «конец» раньше cutoff; archived_at и updated_at = mark (задаёт сервис)
-	ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (archived int, err error)
+	ArchiveOlderThan(ctx context.Context, mark time.Time) (archived int, err error)
 
 	// GetAllArchive получение всех архивных событий (с пагинацией)
 	GetAllArchive(ctx context.Context, userID int64, limit, offset int) ([]*domain.ArchiveEvent, error)
+
+	// GetPendingReminders возвращает события с ReminderAt > now (для восстановления напоминаний при старте)
+	GetPendingReminders(ctx context.Context, now time.Time) ([]*domain.Event, error)
 }

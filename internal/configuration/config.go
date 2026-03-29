@@ -55,7 +55,6 @@ func (c DBConfig) DSN() string {
 type AppConfig struct {
 	Timezone          string        // IANA имя, например "Europe/Moscow" или "UTC"
 	ArchiveEvery      time.Duration // частота запуска архивации старых событий
-	ArchiveOlderThan  time.Duration // события старше этого срока от текущего момента попадают под архивацию (логика в сервисе)
 	ReminderQueueSize int           // размер буфера канала напоминальщика
 	LogBufferSize     int           // размер буфера асинхронного логгера
 }
@@ -83,7 +82,6 @@ func Load() (Config, error) {
 		App: AppConfig{
 			Timezone:          getEnv("APP_TIMEZONE", "Europe/Moscow"),
 			ArchiveEvery:      getDuration("APP_ARCHIVE_EVERY", 5*time.Minute),
-			ArchiveOlderThan:  getDuration("APP_ARCHIVE_OLDER_THAN", 24*time.Hour*365),
 			ReminderQueueSize: getInt("APP_REMINDER_QUEUE_SIZE", 10),
 			LogBufferSize:     getInt("APP_LOG_BUFFER_SIZE", 10),
 		},
@@ -119,9 +117,6 @@ func (c *Config) Validate() error {
 	}
 	if c.App.ArchiveEvery <= 0 {
 		return fmt.Errorf("configuration: APP_ARCHIVE_EVERY должен быть положительным")
-	}
-	if c.App.ArchiveOlderThan <= 0 {
-		return fmt.Errorf("configuration: APP_ARCHIVE_OLDER_THAN должен быть положительным")
 	}
 	if c.App.ReminderQueueSize < 0 {
 		return fmt.Errorf("configuration: APP_REMINDER_QUEUE_SIZE не может быть отрицательным")

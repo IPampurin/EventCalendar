@@ -7,11 +7,10 @@ import (
 	"time"
 )
 
-// ArchiveOlderThan переносит старые активные события в архив и удаляет их из активной таблицы (транзакция)
-// cutoff: события, у которых (end_at < cutoff) или (end_at IS NULL AND start_at < cutoff)
-// mark: время архивации (записывается в archived_at)
+// ArchiveOlderThan переносит прошедшие (StartAt, при EndAt == nil) и закончившиеся (EndAt) события в архив
+// и удаляет их из активной таблицы (транзакция), mark - время начала процедуры архивации (записывается в archived_at),
 // возвращает количество заархивированных событий
-func (s *Store) ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (int, error) {
+func (s *Store) ArchiveOlderThan(ctx context.Context, mark time.Time) (int, error) {
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -33,7 +32,7 @@ func (s *Store) ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (i
 					 WHERE (end_at IS NOT NULL AND end_at < $1) 
 					       OR (end_at IS NULL AND start_at < $1)`
 
-	rows, err := tx.QueryContext(ctx, selectQuery, cutoff)
+	rows, err := tx.QueryContext(ctx, selectQuery, mark)
 	if err != nil {
 		return 0, fmt.Errorf("ошибка выборки старых событий: %w", err)
 	}
@@ -75,6 +74,7 @@ func (s *Store) ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (i
 			UpdatedAt:   dbEvent.UpdatedAt,
 			ArchivedAt:  mark,
 		}
+
 		insertQuery := `INSERT INTO archive_events (id, 
 		                                            user_id, 
 													title, 
@@ -115,7 +115,7 @@ func (s *Store) ArchiveOlderThan(ctx context.Context, cutoff, mark time.Time) (i
 						 WHERE (end_at IS NOT NULL AND end_at < $1) 
 						       OR (end_at IS NULL AND start_at < $1)`
 
-		_, err = tx.ExecContext(ctx, deleteQuery, cutoff)
+		_, err = tx.ExecContext(ctx, deleteQuery, mark)
 		if err != nil {
 			return 0, fmt.Errorf("ошибка удаления старых событий: %w", err)
 		}

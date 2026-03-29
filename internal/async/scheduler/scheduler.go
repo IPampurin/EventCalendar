@@ -2,8 +2,9 @@
 package scheduler
 
 import (
+	"container/heap"
 	"context"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/IPampurin/EventCalendar/internal/domain"
@@ -11,129 +12,133 @@ import (
 	"github.com/google/uuid"
 )
 
-// Scheduler реализует service.ReminderScheduler через канал и таймеры
+// Scheduler управляет очередью напоминаний через priority queue
 type Scheduler struct {
-	queue  chan domain.ReminderTask
-	logger service.Logger
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	mu     sync.RWMutex
-	timers map[uuid.UUID]*time.Timer // для отмены
+	repo       service.EventRepository
+	log        service.Logger
+	addChan    chan domain.ReminderTask
+	cancelChan chan uuid.UUID
+	ctx        context.Context // корневой контекст из main
 }
 
-// NewScheduler возвращает новый напоминатель о событиях
-func NewScheduler(logger service.Logger, queueSize int) *Scheduler {
+// taskQueue — priority queue (минимум по RemindAt)
+type taskQueue []domain.ReminderTask
 
-	ctx, cancel := context.WithCancel(context.Background())
+func (tq taskQueue) Len() int           { return len(tq) }
+func (tq taskQueue) Less(i, j int) bool { return tq[i].RemindAt.Before(tq[j].RemindAt) }
+func (tq taskQueue) Swap(i, j int)      { tq[i], tq[j] = tq[j], tq[i] }
 
+func (tq *taskQueue) Push(x interface{}) {
+	*tq = append(*tq, x.(domain.ReminderTask))
+}
+
+func (tq *taskQueue) Pop() interface{} {
+	old := *tq
+	n := len(old)
+	item := old[n-1]
+	*tq = old[:n-1]
+	return item
+}
+
+// NewScheduler создаёт планировщик с корневым контекстом
+func NewScheduler(ctx context.Context, repo service.EventRepository, log service.Logger, bufSize int) *Scheduler {
 	return &Scheduler{
-		queue:  make(chan domain.ReminderTask, queueSize),
-		logger: logger,
-		ctx:    ctx,
-		cancel: cancel,
-		timers: make(map[uuid.UUID]*time.Timer),
+		repo:       repo,
+		log:        log,
+		addChan:    make(chan domain.ReminderTask, bufSize),
+		cancelChan: make(chan uuid.UUID, bufSize),
+		ctx:        ctx,
 	}
 }
 
-// Start запускает фоновую горутину, обрабатывающую задачи
-func (s *Scheduler) Start() {
+// Run блокируется до отмены контекста
+func (s *Scheduler) Run() {
+	now := time.Now().UTC()
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	// Загружаем из БД будущие напоминания
+	events, err := s.repo.GetPendingReminders(s.ctx, now)
+	if err != nil {
+		s.log.Error("ошибка загрузки напоминаний из БД", "error", err)
+	}
 
-		for {
+	pq := &taskQueue{}
+	heap.Init(pq)
+
+	for _, e := range events {
+		if e.ReminderAt != nil && e.ReminderAt.After(time.Now().UTC()) {
+			heap.Push(pq, domain.ReminderTask{
+				EventID:  e.ID,
+				UserID:   e.UserID,
+				RemindAt: *e.ReminderAt,
+				Title:    e.Title,
+			})
+		}
+	}
+
+	s.log.Info("планировщик запущен", "loaded", len(events), "queue_len", pq.Len())
+
+	for {
+		// Очередь пуста — ждём только добавления или отмены контекста
+		if pq.Len() == 0 {
 			select {
 			case <-s.ctx.Done():
 				return
-			case task, ok := <-s.queue:
-				if !ok {
-					return
+			case task := <-s.addChan:
+				if task.RemindAt.After(time.Now().UTC()) {
+					heap.Push(pq, task)
 				}
-				s.scheduleTask(task)
+			case id := <-s.cancelChan:
+				s.remove(pq, id)
 			}
+			continue
 		}
-	}()
-}
 
-// scheduleTask создаёт таймер на отправку напоминания
-func (s *Scheduler) scheduleTask(task domain.ReminderTask) {
+		// Есть задачи — ждём либо ближайшую, либо новое событие
+		next := (*pq)[0]
+		wait := time.Until(next.RemindAt)
 
-	delay := time.Until(task.RemindAt)
-	if delay < 0 {
-		delay = 0
-	}
-	timer := time.NewTimer(delay)
+		if wait <= 0 {
+			// Время уже пришло
+			heap.Pop(pq)
+			s.fire(next)
+			continue
+		}
 
-	// сохраняем таймер для возможной отмены
-	s.mu.Lock()
-	s.timers[task.EventID] = timer
-	s.mu.Unlock()
-
-	go func() {
+		timer := time.NewTimer(wait)
 		select {
-		case <-timer.C:
-			// отправляем уведомление (пока только логируем)
-			s.logger.Info("напоминание сработало",
-				"event_id", task.EventID,
-				"user_id", task.UserID,
-				"title", task.Title,
-			)
-			s.mu.Lock()
-			delete(s.timers, task.EventID)
-			s.mu.Unlock()
 		case <-s.ctx.Done():
-			// Остановка — таймер не сработает
-			if !timer.Stop() {
-				<-timer.C
+			timer.Stop()
+			return
+		case <-timer.C:
+			heap.Pop(pq)
+			s.fire(next)
+		case task := <-s.addChan:
+			timer.Stop()
+			if task.RemindAt.After(time.Now().UTC()) {
+				heap.Push(pq, task)
 			}
-			s.mu.Lock()
-			delete(s.timers, task.EventID)
-			s.mu.Unlock()
+		case id := <-s.cancelChan:
+			timer.Stop()
+			s.remove(pq, id)
 		}
-	}()
+	}
 }
 
-// Schedule добавляет задачу в очередь
+// Schedule добавляет задачу в канал (неблокирующе, с проверкой контекста)
 func (s *Scheduler) Schedule(ctx context.Context, task domain.ReminderTask) error {
-
 	select {
-	case s.queue <- task:
+	case s.addChan <- task:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("контекст отменён")
+	case <-s.ctx.Done():
+		return fmt.Errorf("планировщик остановлен")
+	default:
+		return fmt.Errorf("канал переполнен")
 	}
 }
 
-// Cancel отменяет запланированное напоминание
-func (s *Scheduler) Cancel(ctx context.Context, eventID uuid.UUID) error {
+// Cancel удаляет задачу из очереди
+func (s *Scheduler) Cancel(ctx context.Context) {
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if timer, ok := s.timers[eventID]; ok {
-		if !timer.Stop() {
-			<-timer.C
-		}
-		delete(s.timers, eventID)
-	}
-
-	return nil
-}
-
-// RestorePending - заглушка (TODO: загружает из БД будущие напоминания)
-func (s *Scheduler) RestorePending(ctx context.Context) error {
-
-	// можно реализовать вызов репозитория и повторную постановку задач
-
-	return nil
-}
-
-// Stop останавливает воркер и отменяет все таймеры
-func (s *Scheduler) Stop() {
-
-	s.cancel()
-	close(s.queue) // закрываем канал, чтобы горутина завершилась
-	s.wg.Wait()
 }

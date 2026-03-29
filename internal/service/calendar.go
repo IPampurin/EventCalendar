@@ -11,10 +11,10 @@ import (
 )
 
 type CalendarService struct {
-	repo   EventRepository
-	rem    ReminderScheduler
-	logger Logger
-	tz     *time.Location // часовой пояс для расчётов дня/недели/месяца
+	repo EventRepository
+	rem  ReminderScheduler
+	log  Logger
+	tz   *time.Location // часовой пояс для расчётов дня/недели/месяца
 }
 
 func NewCalendarService(repo EventRepository, rem ReminderScheduler, logger Logger, tzName string) (*CalendarService, error) {
@@ -25,10 +25,10 @@ func NewCalendarService(repo EventRepository, rem ReminderScheduler, logger Logg
 	}
 
 	return &CalendarService{
-		repo:   repo,
-		rem:    rem,
-		logger: logger,
-		tz:     loc,
+		repo: repo,
+		rem:  rem,
+		log:  logger,
+		tz:   loc,
 	}, nil
 }
 
@@ -59,12 +59,12 @@ func (s *CalendarService) Create(ctx context.Context, event *domain.Event) error
 			Title:    event.Title,
 		}
 		if err := s.rem.Schedule(ctx, task); err != nil {
-			s.logger.Error("не удалось запланировать напоминание", "event_id", event.ID, "error", err)
+			s.log.Error("не удалось запланировать напоминание", "event_id", event.ID, "error", err)
 			// ошибка планирования не должна отменять создание события
 		}
 	}
 
-	s.logger.Info("событие создано", "event_id", event.ID, "user_id", event.UserID)
+	s.log.Info("событие создано", "event_id", event.ID, "user_id", event.UserID)
 
 	return nil
 }
@@ -103,12 +103,12 @@ func (s *CalendarService) Update(ctx context.Context, event *domain.Event) error
 				Title:    event.Title,
 			}
 			if err := s.rem.Schedule(ctx, task); err != nil {
-				s.logger.Error("не удалось перепланировать напоминание", "event_id", event.ID, "error", err)
+				s.log.Error("не удалось перепланировать напоминание", "event_id", event.ID, "error", err)
 			}
 		}
 	}
 
-	s.logger.Info("событие обновлено", "event_id", event.ID, "user_id", event.UserID)
+	s.log.Info("событие обновлено", "event_id", event.ID, "user_id", event.UserID)
 
 	return nil
 }
@@ -126,7 +126,7 @@ func (s *CalendarService) Delete(ctx context.Context, userID int64, eventID uuid
 		return err
 	}
 
-	s.logger.Info("событие удалено", "event_id", eventID, "user_id", userID)
+	s.log.Info("событие удалено", "event_id", eventID, "user_id", userID)
 
 	return nil
 }
@@ -139,12 +139,12 @@ func (s *CalendarService) GetByID(ctx context.Context, userID int64, eventID uui
 // GetEventsForDay возвращает события на календарный день (в указанной временной зоне)
 func (s *CalendarService) GetEventsForDay(ctx context.Context, userID int64, date time.Time) ([]*domain.Event, error) {
 
-	// приводим дату к началу дня в локальной временной зоне
+	// date - это дата, переданная клиентом в формате YYYY-MM-DD, интерпретируется как локальная дата в tz сервера
 	localDate := date.In(s.tz)
-	start := time.Date(localDate.Year(), localDate.Month(), localDate.Day(), 0, 0, 0, 0, s.tz).UTC()
-	end := start.AddDate(0, 0, 1).UTC()
+	start := time.Date(localDate.Year(), localDate.Month(), localDate.Day(), 0, 0, 0, 0, s.tz)
+	end := start.AddDate(0, 0, 1)
 
-	return s.repo.ListBetween(ctx, userID, start, end)
+	return s.repo.ListBetween(ctx, userID, start.UTC(), end.UTC())
 }
 
 // GetEventsForWeek возвращает события на неделю, начинающуюся с даты (понедельник–воскресенье)
@@ -158,20 +158,20 @@ func (s *CalendarService) GetEventsForWeek(ctx context.Context, userID int64, da
 		offset += 7
 	}
 
-	start := time.Date(localDate.Year(), localDate.Month(), localDate.Day()-offset, 0, 0, 0, 0, s.tz).UTC()
-	end := start.AddDate(0, 0, 7).UTC()
+	start := time.Date(localDate.Year(), localDate.Month(), localDate.Day()-offset, 0, 0, 0, 0, s.tz)
+	end := start.AddDate(0, 0, 7)
 
-	return s.repo.ListBetween(ctx, userID, start, end)
+	return s.repo.ListBetween(ctx, userID, start.UTC(), end.UTC())
 }
 
 // GetEventsForMonth возвращает события на календарный месяц
 func (s *CalendarService) GetEventsForMonth(ctx context.Context, userID int64, date time.Time) ([]*domain.Event, error) {
 
 	localDate := date.In(s.tz)
-	start := time.Date(localDate.Year(), localDate.Month(), 1, 0, 0, 0, 0, s.tz).UTC()
-	end := start.AddDate(0, 1, 0).UTC()
+	start := time.Date(localDate.Year(), localDate.Month(), 1, 0, 0, 0, 0, s.tz)
+	end := start.AddDate(0, 1, 0)
 
-	return s.repo.ListBetween(ctx, userID, start, end)
+	return s.repo.ListBetween(ctx, userID, start.UTC(), end.UTC())
 }
 
 // GetArchiveEvents возвращает архивные события пользователя с пагинацией

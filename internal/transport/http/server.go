@@ -15,13 +15,13 @@ import (
 
 // Server - обёртка над gin.Engine и net/http.Server
 type Server struct {
-	cfg     *configuration.Config
+	cfg     *configuration.HTTPConfig
 	engine  *gin.Engine
 	handler *Handler
 }
 
 // NewServer - создаёт движок Gin, регистрирует маршруты календаря
-func NewServer(cfg *configuration.Config, svc *service.CalendarService, logger service.Logger) *Server {
+func NewServer(cfg *configuration.HTTPConfig, svc *service.CalendarService, logger service.Logger) *Server {
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -54,7 +54,7 @@ func (s *Server) Addr() string {
 // Run - ListenAndServe до отмены ctx, затем Shutdown с таймаутом из конфига
 func (s *Server) Run(ctx context.Context) error {
 
-	shutdownTimeout := s.cfg.HTTP.ShutdownTimeout
+	shutdownTimeout := s.cfg.ShutdownTimeout
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = 30 * time.Second
 	}
@@ -62,9 +62,9 @@ func (s *Server) Run(ctx context.Context) error {
 	srv := &nethttp.Server{
 		Addr:         s.Addr(),
 		Handler:      s.engine,
-		ReadTimeout:  s.cfg.HTTP.ReadTimeout,
-		WriteTimeout: s.cfg.HTTP.WriteTimeout,
-		IdleTimeout:  s.cfg.HTTP.IdleTimeout,
+		ReadTimeout:  s.cfg.ReadTimeout,
+		WriteTimeout: s.cfg.WriteTimeout,
+		IdleTimeout:  s.cfg.IdleTimeout,
 	}
 
 	errCh := make(chan error, 1)
