@@ -62,7 +62,7 @@ func (s *Store) ArchiveOlderThan(ctx context.Context, mark time.Time) (int, erro
 			dbEvent.ReminderAt = &reminderAt.Time
 		}
 		// копируем в архив
-		archEvent := ArchivEvent{
+		archEvent := ArchiveEvent{
 			ID:          dbEvent.ID,
 			UserID:      dbEvent.UserID,
 			Title:       dbEvent.Title,

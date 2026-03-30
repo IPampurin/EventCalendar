@@ -48,7 +48,7 @@ func NewServer(cfg *configuration.HTTPConfig, svc *service.CalendarService, logg
 // Addr - адрес прослушивания в формате host:port
 func (s *Server) Addr() string {
 
-	return fmt.Sprintf("%s:%s", s.cfg.HTTP.Host, s.cfg.HTTP.Port)
+	return fmt.Sprintf("%s:%s", s.cfg.Host, s.cfg.Port)
 }
 
 // Run - ListenAndServe до отмены ctx, затем Shutdown с таймаутом из конфига

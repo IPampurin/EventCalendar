@@ -20,8 +20,8 @@ type Event struct {
 	UpdatedAt   time.Time  `db:"updated_at"`  // время последнего обновления
 }
 
-// ArchivEvent - запись в таблице archiv_events
-type ArchivEvent struct {
+// ArchiveEvent - запись в таблице archiv_events
+type ArchiveEvent struct {
 	ID          uuid.UUID  `db:"id"`          // uid события
 	UserID      int64      `db:"user_id"`     // id пользователя, к которому относится событие
 	Title       string     `db:"title"`       // название события

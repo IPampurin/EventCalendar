@@ -38,9 +38,9 @@ func mapDBToEvent(d Event) *domain.Event {
 }
 
 // преобразование доменного архивного события в БД-структуру
-func mapArchiveEventToDB(e *domain.ArchiveEvent) ArchivEvent {
+func mapArchiveEventToDB(e *domain.ArchiveEvent) ArchiveEvent {
 
-	return ArchivEvent{
+	return ArchiveEvent{
 		ID:          e.ID,
 		UserID:      e.UserID,
 		Title:       e.Title,
@@ -55,7 +55,7 @@ func mapArchiveEventToDB(e *domain.ArchiveEvent) ArchivEvent {
 }
 
 // преобразование БД-структуры в доменное архивное событие
-func mapDBToArchiveEvent(d ArchivEvent) *domain.ArchiveEvent {
+func mapDBToArchiveEvent(d ArchiveEvent) *domain.ArchiveEvent {
 
 	return &domain.ArchiveEvent{
 		ID:          d.ID,

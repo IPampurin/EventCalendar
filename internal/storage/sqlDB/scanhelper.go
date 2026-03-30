@@ -60,9 +60,9 @@ func (s *Store) scanEvent(row scanner) (*Event, error) {
 }
 
 // scanArchiveEvent сканирует строку из таблицы archive_events в ArchivEvent
-func (s *Store) scanArchiveEvent(row scanner) (*ArchivEvent, error) {
+func (s *Store) scanArchiveEvent(row scanner) (*ArchiveEvent, error) {
 
-	var e ArchivEvent
+	var e ArchiveEvent
 	var endAt, reminderAt sql.NullTime
 
 	err := row.Scan(
