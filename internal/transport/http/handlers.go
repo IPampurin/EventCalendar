@@ -51,8 +51,8 @@ func respondError(c *gin.Context, err error) {
 	c.JSON(status, gin.H{"error": message})
 }
 
-// createEvent POST /create_event
-func (h *Handler) createEvent(c *gin.Context) {
+// CreateEvent POST /create_event
+func (h *Handler) CreateEvent(c *gin.Context) {
 
 	var req CreateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,7 +60,7 @@ func (h *Handler) createEvent(c *gin.Context) {
 		return
 	}
 
-	event, err := req.toDomain()
+	event, err := req.ToDomain()
 	if err != nil {
 		respondError(c, err)
 		return
@@ -75,8 +75,8 @@ func (h *Handler) createEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"result": gin.H{"id": event.ID.String()}})
 }
 
-// updateEvent POST /update_event
-func (h *Handler) updateEvent(c *gin.Context) {
+// UpdateEvent POST /update_event
+func (h *Handler) UpdateEvent(c *gin.Context) {
 
 	var req UpdateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -84,7 +84,7 @@ func (h *Handler) updateEvent(c *gin.Context) {
 		return
 	}
 
-	event, err := req.toDomain()
+	event, err := req.ToDomain()
 	if err != nil {
 		respondError(c, err)
 		return
@@ -99,8 +99,8 @@ func (h *Handler) updateEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": gin.H{"id": event.ID.String()}})
 }
 
-// deleteEvent POST /delete_event
-func (h *Handler) deleteEvent(c *gin.Context) {
+// DeleteEvent POST /delete_event
+func (h *Handler) DeleteEvent(c *gin.Context) {
 
 	var req DeleteEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -123,8 +123,8 @@ func (h *Handler) deleteEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": gin.H{"status": "deleted"}})
 }
 
-// eventsForDay GET /events_for_day
-func (h *Handler) eventsForDay(c *gin.Context) {
+// EventsForDay GET /events_for_day
+func (h *Handler) EventsForDay(c *gin.Context) {
 
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -148,8 +148,8 @@ func (h *Handler) eventsForDay(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
 }
 
-// eventsForWeek GET /events_for_week
-func (h *Handler) eventsForWeek(c *gin.Context) {
+// EventsForWeek GET /events_for_week
+func (h *Handler) EventsForWeek(c *gin.Context) {
 
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -173,8 +173,8 @@ func (h *Handler) eventsForWeek(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
 }
 
-// eventsForMonth GET /events_for_month
-func (h *Handler) eventsForMonth(c *gin.Context) {
+// EventsForMonth GET /events_for_month
+func (h *Handler) EventsForMonth(c *gin.Context) {
 
 	var query EventsForPeriodQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -198,8 +198,8 @@ func (h *Handler) eventsForMonth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": toEventResponses(events)})
 }
 
-// getArchiveEvents GET /archive_events
-func (h *Handler) getArchiveEvents(c *gin.Context) {
+// GetArchiveEvents GET /archive_events
+func (h *Handler) GetArchiveEvents(c *gin.Context) {
 
 	var query ArchiveEventsQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -227,8 +227,8 @@ func (h *Handler) getArchiveEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"result": toArchiveEventResponses(events)})
 }
 
-// toDomain создаёт domain.Event из CreateEventRequest
-func (r CreateEventRequest) toDomain() (*domain.Event, error) {
+// ToDomain создаёт domain.Event из CreateEventRequest
+func (r CreateEventRequest) ToDomain() (*domain.Event, error) {
 
 	startAt, err := time.Parse(time.RFC3339, r.StartAt)
 	if err != nil {
@@ -263,8 +263,8 @@ func (r CreateEventRequest) toDomain() (*domain.Event, error) {
 	}, nil
 }
 
-// toDomain для UpdateEventRequest
-func (r UpdateEventRequest) toDomain() (*domain.Event, error) {
+// ToDomain для UpdateEventRequest
+func (r UpdateEventRequest) ToDomain() (*domain.Event, error) {
 
 	eventID, err := uuid.Parse(r.EventID)
 	if err != nil {
