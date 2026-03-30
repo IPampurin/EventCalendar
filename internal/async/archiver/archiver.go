@@ -11,17 +11,17 @@ import (
 // Archiver реализует service.Archiver - периодическая архивация старых событий
 type Archiver struct {
 	repo     service.EventRepository
-	logger   service.Logger
+	log      service.Logger
 	interval time.Duration
 	ctx      context.Context
 }
 
 // NewArchiver возвращает новый архиватор
-func NewArchiver(ctx context.Context, repo service.EventRepository, logger service.Logger, interval time.Duration) *Archiver {
+func NewArchiver(ctx context.Context, repo service.EventRepository, log service.Logger, interval time.Duration) *Archiver {
 
 	return &Archiver{
 		repo:     repo,
-		logger:   logger,
+		log:      log,
 		interval: interval,
 		ctx:      ctx,
 	}
@@ -30,8 +30,12 @@ func NewArchiver(ctx context.Context, repo service.EventRepository, logger servi
 // Run - блокируется до отмены ctx, запускает тикер
 func (a *Archiver) Run() {
 
+	defer a.log.Info("архиватор остановлен", "stop")
+
 	ticker := time.NewTicker(a.interval)
 	defer ticker.Stop()
+
+	a.log.Info("архиватор запущен", "loaded", a.interval)
 
 	for {
 		select {
@@ -40,7 +44,7 @@ func (a *Archiver) Run() {
 		case <-ticker.C:
 			if err := a.archive(); err != nil {
 				// при ошибке архивации логируем, но продолжаем выполнение до отмены контекста
-				a.logger.Error("ошибка архивации", "error", err)
+				a.log.Error("ошибка архивации", "error", err)
 			}
 		}
 	}
@@ -56,7 +60,7 @@ func (a *Archiver) archive() error {
 		return err
 	}
 	if count > 0 {
-		a.logger.Info("архивация выполнена", "archived_count", count)
+		a.log.Info("архивация выполнена", "archived_count", count)
 	}
 
 	return nil

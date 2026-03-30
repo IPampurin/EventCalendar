@@ -28,7 +28,7 @@ type EventRepository interface {
 	// (границы day/week/month считает сервис и передаёт start/end сюда)
 	ListBetween(ctx context.Context, userID int64, start, end time.Time) ([]*domain.Event, error)
 
-	// ArchiveOlderThan - помечает архивом события, у которых «конец» раньше cutoff; archived_at и updated_at = mark (задаёт сервис)
+	// ArchiveOlderThan - переносит прошедшие (StartAt, при EndAt == nil) и закончившиеся (EndAt) события в архив
 	ArchiveOlderThan(ctx context.Context, mark time.Time) (archived int, err error)
 
 	// GetAllArchive получение всех архивных событий (с пагинацией)

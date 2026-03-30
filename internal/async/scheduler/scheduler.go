@@ -72,6 +72,8 @@ func NewScheduler(ctx context.Context, repo service.EventRepository, log service
 // Run блокируется до отмены контекста, запускает основную логику
 func (s *Scheduler) Run() {
 
+	defer s.log.Info("планировщик остановлен", "stop")
+
 	s.wg.Add(1)
 	defer s.wg.Done()
 
