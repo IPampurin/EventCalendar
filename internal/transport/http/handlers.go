@@ -37,10 +37,10 @@ func respondError(c *gin.Context, err error) {
 
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		status = http.StatusServiceUnavailable // 503
+		status = http.StatusNotFound // 404
 		message = "событие не найдено"
 	case errors.Is(err, context.DeadlineExceeded):
-		status = http.StatusInternalServerError // 500
+		status = http.StatusGatewayTimeout // 504
 		message = "таймаут операции"
 	default:
 		// для всех остальных ошибок (в т.ч. валидации) - 400

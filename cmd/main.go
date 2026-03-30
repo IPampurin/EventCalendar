@@ -56,6 +56,7 @@ func main() {
 	// получаем запускаем фоном планировщик напоминаний
 	reminderScheduler := scheduler.NewScheduler(ctx, repo, appLogger, cfg.App.ReminderQueueSize)
 	go reminderScheduler.Run()
+	defer reminderScheduler.Stop()
 
 	// сервис календаря
 	calendarSvc, err := service.NewCalendarService(repo, reminderScheduler, appLogger, cfg.App.Timezone)
