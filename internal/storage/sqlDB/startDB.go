@@ -3,50 +3,56 @@ package sqldb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/IPampurin/EventCalendar/internal/configuration"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	maxOpenConns    = 25
-	maxIdleConns    = 5
-	connMaxLifetime = 30 * time.Minute
+	maxConns        = 25
+	minConns        = 5
+	maxConnIdle     = 2 * time.Minute
+	maxConnLifetime = 30 * time.Minute
 )
 
 // Store реализует интерфейс service.EventRepository
 type Store struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-// StartDB открывает пул соединений к Postgres через database/sql и драйвер pgx/stdlib
-func StartDB(ctx context.Context, cfg *configuration.DBConfig) (*sql.DB, error) {
+// StartDB открывает пул соединений к Postgres через pgxpool
+func StartDB(ctx context.Context, cfg *configuration.DBConfig) (*pgxpool.Pool, error) {
 
 	dsn := cfg.DSN()
 
-	db, err := sql.Open("pgx", dsn)
+	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("открытие БД: %w", err)
+		return nil, fmt.Errorf("парсинг DSN: %w", err)
 	}
 
-	// лимиты пула под нагрузку сервиса
-	db.SetMaxOpenConns(maxOpenConns)
-	db.SetMaxIdleConns(maxIdleConns)
-	db.SetConnMaxLifetime(connMaxLifetime)
+	poolConfig.MaxConns = maxConns
+	poolConfig.MinConns = minConns
+	poolConfig.MaxConnIdleTime = maxConnIdle
+	poolConfig.MaxConnLifetime = maxConnLifetime
 
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("создание пула: %w", err)
+	}
+
+	// проверка соединения
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("ping БД: %w", err)
 	}
 
-	return db, nil
+	return pool, nil
 }
 
-// NewStore возвращает реализацию service.EventRepository поверх готового *sql.DB
-func NewStore(db *sql.DB) *Store {
+// NewStore возвращает реализацию service.EventRepository с пулом
+func NewStore(pool *pgxpool.Pool) *Store {
 
-	return &Store{db: db}
+	return &Store{db: pool}
 }

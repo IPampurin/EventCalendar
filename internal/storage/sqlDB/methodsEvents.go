@@ -8,6 +8,7 @@ import (
 
 	"github.com/IPampurin/EventCalendar/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // Create вставляет активное событие
@@ -24,14 +25,14 @@ func (s *Store) Create(ctx context.Context, e *domain.Event) error {
 								  updated_at)
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.db.Exec(ctx, query,
 		dbEvent.ID,
 		dbEvent.UserID,
 		dbEvent.Title,
 		dbEvent.Description,
 		dbEvent.StartAt,
-		nullTime(dbEvent.EndAt),
-		nullTime(dbEvent.ReminderAt),
+		dbEvent.EndAt,
+		dbEvent.ReminderAt,
 		dbEvent.CreatedAt,
 		dbEvent.UpdatedAt,
 	)
@@ -56,12 +57,12 @@ func (s *Store) Update(ctx context.Context, e *domain.Event) error {
 			   WHERE id = $7
 			         AND user_id = $8`
 
-	result, err := s.db.ExecContext(ctx, query,
+	result, err := s.db.Exec(ctx, query,
 		dbEvent.Title,
 		dbEvent.Description,
 		dbEvent.StartAt,
-		nullTime(dbEvent.EndAt),
-		nullTime(dbEvent.ReminderAt),
+		dbEvent.EndAt,
+		dbEvent.ReminderAt,
 		dbEvent.UpdatedAt,
 		dbEvent.ID,
 		dbEvent.UserID,
@@ -70,11 +71,7 @@ func (s *Store) Update(ctx context.Context, e *domain.Event) error {
 		return fmt.Errorf("ошибка обновления события: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("ошибка получения количества затронутых строк: %w", err)
-	}
-	if rows == 0 {
+	if result.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}
 
@@ -89,16 +86,12 @@ func (s *Store) Delete(ctx context.Context, userID int64, eventID uuid.UUID) err
 			   WHERE id = $1 
 			         AND user_id = $2`
 
-	result, err := s.db.ExecContext(ctx, query, eventID, userID)
+	result, err := s.db.Exec(ctx, query, eventID, userID)
 	if err != nil {
 		return fmt.Errorf("ошибка удаления события: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("ошибка получения количества затронутых строк: %w", err)
-	}
-	if rows == 0 {
+	if result.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}
 
@@ -121,12 +114,26 @@ func (s *Store) GetByID(ctx context.Context, userID int64, eventID uuid.UUID) (*
 			   WHERE id = $1 
 			         AND user_id = $2`
 
-	dbEvent, err := s.scanEvent(s.db.QueryRowContext(ctx, query, eventID, userID))
+	var dbEvent Event
+	err := s.db.QueryRow(ctx, query, eventID, userID).Scan(
+		&dbEvent.ID,
+		&dbEvent.UserID,
+		&dbEvent.Title,
+		&dbEvent.Description,
+		&dbEvent.StartAt,
+		&dbEvent.EndAt,
+		&dbEvent.ReminderAt,
+		&dbEvent.CreatedAt,
+		&dbEvent.UpdatedAt,
+	)
 	if err != nil {
-		return nil, err
+		if err == pgx.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("ошибка получения события: %w", err)
 	}
 
-	return mapDBToEvent(*dbEvent), nil
+	return mapDBToEvent(dbEvent), nil
 }
 
 // ListBetween возвращает активные события пользователя за интервал [start, end) UTC
@@ -146,7 +153,7 @@ func (s *Store) ListBetween(ctx context.Context, userID int64, start, end time.T
 					 AND (end_at IS NULL OR end_at > $2)
 			   ORDER BY start_at`
 
-	rows, err := s.db.QueryContext(ctx, query, userID, start, end)
+	rows, err := s.db.Query(ctx, query, userID, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выборки событий: %w", err)
 	}
@@ -154,13 +161,24 @@ func (s *Store) ListBetween(ctx context.Context, userID int64, start, end time.T
 
 	events := make([]*domain.Event, 0)
 	for rows.Next() {
-		dbEvent, err := s.scanEvent(rows)
+		var dbEvent Event
+		err := rows.Scan(
+			&dbEvent.ID,
+			&dbEvent.UserID,
+			&dbEvent.Title,
+			&dbEvent.Description,
+			&dbEvent.StartAt,
+			&dbEvent.EndAt,
+			&dbEvent.ReminderAt,
+			&dbEvent.CreatedAt,
+			&dbEvent.UpdatedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
 		}
-		events = append(events, mapDBToEvent(*dbEvent))
+		events = append(events, mapDBToEvent(dbEvent))
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("ошибка итерации: %w", err)
 	}
 
@@ -183,7 +201,7 @@ func (s *Store) GetPendingReminders(ctx context.Context, now time.Time) ([]*doma
 			         AND reminder_at > $1
 			   ORDER BY reminder_at`
 
-	rows, err := s.db.QueryContext(ctx, query, now)
+	rows, err := s.db.Query(ctx, query, now)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выборки событий: %w", err)
 	}
@@ -191,13 +209,24 @@ func (s *Store) GetPendingReminders(ctx context.Context, now time.Time) ([]*doma
 
 	events := make([]*domain.Event, 0)
 	for rows.Next() {
-		dbEvent, err := s.scanEvent(rows)
+		var dbEvent Event
+		err := rows.Scan(
+			&dbEvent.ID,
+			&dbEvent.UserID,
+			&dbEvent.Title,
+			&dbEvent.Description,
+			&dbEvent.StartAt,
+			&dbEvent.EndAt,
+			&dbEvent.ReminderAt,
+			&dbEvent.CreatedAt,
+			&dbEvent.UpdatedAt,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
+			return nil, fmt.Errorf("ошибка сканирования: %w", err)
 		}
-		events = append(events, mapDBToEvent(*dbEvent))
+		events = append(events, mapDBToEvent(dbEvent))
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("ошибка итерации: %w", err)
 	}
 

@@ -3,7 +3,8 @@ package sqldb
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -42,20 +43,18 @@ const (
 )
 
 // Migrations применяет миграции
-func Migrations(ctx context.Context, db *sql.DB) error {
+func Migrations(ctx context.Context, db *pgxpool.Pool) error {
 
-	if _, err := db.ExecContext(ctx, eventsTableSchema); err != nil {
+	if _, err := db.Exec(ctx, eventsTableSchema); err != nil {
 		return err
 	}
-
-	if _, err := db.ExecContext(ctx, eventsIndexSchema); err != nil {
+	if _, err := db.Exec(ctx, eventsIndexSchema); err != nil {
 		return err
 	}
-
-	if _, err := db.ExecContext(ctx, archiveTableSchema); err != nil {
+	if _, err := db.Exec(ctx, archiveTableSchema); err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, archiveIndexSchema); err != nil {
+	if _, err := db.Exec(ctx, archiveIndexSchema); err != nil {
 		return err
 	}
 

@@ -16,11 +16,17 @@ function formatDateTime(dateStr) {
     return isNaN(d.getTime()) ? dateStr : d.toLocaleString();
 }
 
-function formatDateInput(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 16);
+// Преобразует UTC-дату из сервера в локальный формат для datetime-local
+function utcToLocalDatetimeLocal(utcDateStr) {
+    if (!utcDateStr) return '';
+    const date = new Date(utcDateStr);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function shortenUid(uid) {
@@ -232,9 +238,9 @@ async function editEvent(id) {
         document.getElementById('user_id').value = event.user_id;
         document.getElementById('title').value = event.title;
         document.getElementById('description').value = event.description || '';
-        document.getElementById('start_at').value = formatDateInput(event.start_at);
-        document.getElementById('end_at').value = formatDateInput(event.end_at);
-        document.getElementById('reminder_at').value = formatDateInput(event.reminder_at);
+        document.getElementById('start_at').value = utcToLocalDatetimeLocal(event.start_at);
+        document.getElementById('end_at').value = utcToLocalDatetimeLocal(event.end_at);
+        document.getElementById('reminder_at').value = utcToLocalDatetimeLocal(event.reminder_at);
         document.getElementById('submitBtn').textContent = '✏️ Обновить';
         document.getElementById('cancelEditBtn').style.display = 'inline-block';
     } catch (error) {

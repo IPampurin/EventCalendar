@@ -7,6 +7,7 @@ import (
 
 	"github.com/IPampurin/EventCalendar/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // ArchiveEventCreate вставляет событие в архивную таблицу
@@ -24,14 +25,14 @@ func (s *Store) ArchiveEventCreate(ctx context.Context, e *domain.ArchiveEvent) 
 										  archived_at)
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.db.Exec(ctx, query,
 		dbArch.ID,
 		dbArch.UserID,
 		dbArch.Title,
 		dbArch.Description,
 		dbArch.StartAt,
-		nullTime(dbArch.EndAt),
-		nullTime(dbArch.ReminderAt),
+		dbArch.EndAt,
+		dbArch.ReminderAt,
 		dbArch.CreatedAt,
 		dbArch.UpdatedAt,
 		dbArch.ArchivedAt,
@@ -60,12 +61,27 @@ func (s *Store) GetArchiveByID(ctx context.Context, userID int64, eventID uuid.U
 			   WHERE id = $1 
 			         AND user_id = $2`
 
-	dbArch, err := s.scanArchiveEvent(s.db.QueryRowContext(ctx, query, eventID, userID))
+	var dbArch ArchiveEvent
+	err := s.db.QueryRow(ctx, query, eventID, userID).Scan(
+		&dbArch.ID,
+		&dbArch.UserID,
+		&dbArch.Title,
+		&dbArch.Description,
+		&dbArch.StartAt,
+		&dbArch.EndAt,
+		&dbArch.ReminderAt,
+		&dbArch.CreatedAt,
+		&dbArch.UpdatedAt,
+		&dbArch.ArchivedAt,
+	)
 	if err != nil {
-		return nil, err
+		if err == pgx.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("ошибка получения архивного события: %w", err)
 	}
 
-	return mapDBToArchiveEvent(*dbArch), nil
+	return mapDBToArchiveEvent(dbArch), nil
 }
 
 // GetAllArchive возвращает все архивные события пользователя (пагинация: limit, offset)
@@ -87,7 +103,7 @@ func (s *Store) GetAllArchive(ctx context.Context, userID int64, limit, offset i
 			   LIMIT $2 
 			  OFFSET $3`
 
-	rows, err := s.db.QueryContext(ctx, query, userID, limit, offset)
+	rows, err := s.db.Query(ctx, query, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выборки архива: %w", err)
 	}
@@ -95,13 +111,25 @@ func (s *Store) GetAllArchive(ctx context.Context, userID int64, limit, offset i
 
 	events := make([]*domain.ArchiveEvent, 0)
 	for rows.Next() {
-		dbArch, err := s.scanArchiveEvent(rows)
+		var dbArch ArchiveEvent
+		err := rows.Scan(
+			&dbArch.ID,
+			&dbArch.UserID,
+			&dbArch.Title,
+			&dbArch.Description,
+			&dbArch.StartAt,
+			&dbArch.EndAt,
+			&dbArch.ReminderAt,
+			&dbArch.CreatedAt,
+			&dbArch.UpdatedAt,
+			&dbArch.ArchivedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования архивной строки: %w", err)
 		}
-		events = append(events, mapDBToArchiveEvent(*dbArch))
+		events = append(events, mapDBToArchiveEvent(dbArch))
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("ошибка итерации: %w", err)
 	}
 
