@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// captureOutput временно перенаправляет stdout в буфер и возвращает функцию для восстановления
+// captureOutput перенаправляет stdout в буфер и возвращает функцию для восстановления
 func captureOutput() (*bytes.Buffer, func()) {
 
 	old := os.Stdout
@@ -23,13 +23,13 @@ func captureOutput() (*bytes.Buffer, func()) {
 	buf := &bytes.Buffer{}
 	done := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(buf, r)
+		io.Copy(buf, r)
 		close(done)
 	}()
 
 	restore := func() {
 		w.Close()
-		<-done
+		<-done // ждём завершения горутины копирования
 		os.Stdout = old
 	}
 
@@ -42,15 +42,13 @@ func TestAsyncLogger_Basic(t *testing.T) {
 	defer restore()
 
 	l := logger.NewAsyncLogger(10)
-	defer l.Close() // будет закрыт в конце
+	defer l.Close()
 
 	l.Info("test info", "key", "value")
 	l.Error("test error", "err", "something")
 	l.Debug("test debug", "foo", "bar")
 
-	time.Sleep(50 * time.Millisecond) // даём время на обработку
-
-	// l.Close() уже вызовется по defer, не вызываем повторно
+	time.Sleep(50 * time.Millisecond)
 
 	output := buf.String()
 
@@ -103,6 +101,7 @@ func TestAsyncLogger_BufferOverflow(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		l.Info("message", "index", i)
 	}
+
 	time.Sleep(50 * time.Millisecond)
 	// просто проверяем, что не упало
 }
@@ -111,7 +110,7 @@ func TestAsyncLogger_CloseWaitsForProcessing(t *testing.T) {
 
 	l := logger.NewAsyncLogger(10)
 	l.Info("last message")
-	// закрываем, это должно дождаться завершения горутины
+
 	closeErr := l.Close()
 	assert.NoError(t, closeErr)
 }
@@ -142,7 +141,7 @@ func TestAsyncLogger_ConcurrentWrites(t *testing.T) {
 	}
 
 	time.Sleep(200 * time.Millisecond)
-	// не вызываем Close() вручную, defer сделает это
+
 	output := buf.String()
 	count := strings.Count(output, "concurrent")
 	expected := goroutines * messagesPer
