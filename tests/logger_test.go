@@ -13,8 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// captureOutput перенаправляет stdout в буфер и возвращает функцию для восстановления
-func captureOutput() (*bytes.Buffer, func()) {
+// captureOutput перенаправляет stdout в буфер
+// возвращает:
+//   - buf – буфер, в который будет записан вывод
+//   - flush – функция, которая закрывает писатель и дожидается завершения копирования
+//   - restore – функция, которая вызывает flush и восстанавливает исходный stdout
+func captureOutput() (*bytes.Buffer, func(), func()) {
 
 	old := os.Stdout
 	r, w, _ := os.Pipe()
@@ -23,22 +27,25 @@ func captureOutput() (*bytes.Buffer, func()) {
 	buf := &bytes.Buffer{}
 	done := make(chan struct{})
 	go func() {
-		io.Copy(buf, r)
+		_, _ = io.Copy(buf, r)
 		close(done)
 	}()
 
-	restore := func() {
+	flush := func() {
 		w.Close()
-		<-done // ждём завершения горутины копирования
+		<-done
+	}
+	restore := func() {
+		flush()
 		os.Stdout = old
 	}
 
-	return buf, restore
+	return buf, flush, restore
 }
 
 func TestAsyncLogger_Basic(t *testing.T) {
 
-	buf, restore := captureOutput()
+	buf, flush, restore := captureOutput()
 	defer restore()
 
 	l := logger.NewAsyncLogger(10)
@@ -48,8 +55,9 @@ func TestAsyncLogger_Basic(t *testing.T) {
 	l.Error("test error", "err", "something")
 	l.Debug("test debug", "foo", "bar")
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond) // даём время на обработку
 
+	flush() // дожидаемся завершения копирования
 	output := buf.String()
 
 	assert.Contains(t, output, "INFO")
@@ -70,7 +78,7 @@ func TestAsyncLogger_Basic(t *testing.T) {
 
 func TestAsyncLogger_Fields(t *testing.T) {
 
-	buf, restore := captureOutput()
+	buf, flush, restore := captureOutput()
 	defer restore()
 
 	l := logger.NewAsyncLogger(10)
@@ -80,7 +88,7 @@ func TestAsyncLogger_Fields(t *testing.T) {
 	l.Info("with fields", "field1", 123, "field2", "text", "field3", true)
 
 	time.Sleep(50 * time.Millisecond)
-
+	flush()
 	output := buf.String()
 
 	assert.Contains(t, output, "no fields")
@@ -101,7 +109,6 @@ func TestAsyncLogger_BufferOverflow(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		l.Info("message", "index", i)
 	}
-
 	time.Sleep(50 * time.Millisecond)
 	// просто проверяем, что не упало
 }
@@ -117,7 +124,7 @@ func TestAsyncLogger_CloseWaitsForProcessing(t *testing.T) {
 
 func TestAsyncLogger_ConcurrentWrites(t *testing.T) {
 
-	buf, restore := captureOutput()
+	buf, flush, restore := captureOutput()
 	defer restore()
 
 	l := logger.NewAsyncLogger(100)
@@ -141,7 +148,7 @@ func TestAsyncLogger_ConcurrentWrites(t *testing.T) {
 	}
 
 	time.Sleep(200 * time.Millisecond)
-
+	flush()
 	output := buf.String()
 	count := strings.Count(output, "concurrent")
 	expected := goroutines * messagesPer
@@ -151,7 +158,7 @@ func TestAsyncLogger_ConcurrentWrites(t *testing.T) {
 
 func TestAsyncLogger_FieldsWithOddArguments(t *testing.T) {
 
-	buf, restore := captureOutput()
+	buf, flush, restore := captureOutput()
 	defer restore()
 
 	l := logger.NewAsyncLogger(10)
@@ -159,8 +166,9 @@ func TestAsyncLogger_FieldsWithOddArguments(t *testing.T) {
 
 	l.Info("odd fields", "key1", "value1", "key2")
 	time.Sleep(50 * time.Millisecond)
-
+	flush()
 	output := buf.String()
+
 	assert.NotContains(t, output, "key2")
 	assert.Contains(t, output, "key1")
 	assert.Contains(t, output, "value1")
