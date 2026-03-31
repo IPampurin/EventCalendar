@@ -16,6 +16,16 @@ function formatDateTime(dateStr) {
     return isNaN(d.getTime()) ? dateStr : d.toLocaleString();
 }
 
+// Преобразует локальное значение из datetime-local в UTC (ISO-строка с Z)
+function localDateTimeToUTC(dateTimeLocal) {
+    if (!dateTimeLocal) return null;
+    const [datePart, timePart] = dateTimeLocal.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    const localDate = new Date(year, month - 1, day, hours, minutes);
+    return localDate.toISOString();
+}
+
 // Преобразует UTC-дату из сервера в локальный формат для datetime-local
 function utcToLocalDatetimeLocal(utcDateStr) {
     if (!utcDateStr) return '';
@@ -55,7 +65,6 @@ function resetRefreshTimer() {
     }, REFRESH_INTERVAL_MS);
 }
 
-// Возвращает локальную дату в формате YYYY-MM-DD
 function getCurrentDate() {
     const now = new Date();
     const year = now.getFullYear();
@@ -64,17 +73,13 @@ function getCurrentDate() {
     return `${year}-${month}-${day}`;
 }
 
-// Загрузка активных событий за текущий месяц
 async function loadEvents() {
     const userId = document.getElementById('user_id').value;
     const date = getCurrentDate();
     const url = `${API.eventsForMonth}?user_id=${userId}&date=${date}`;
-
     try {
         const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         let events = [];
         if (data.result && Array.isArray(data.result)) {
@@ -91,7 +96,6 @@ async function loadEvents() {
     }
 }
 
-// Отрисовка таблицы активных событий
 function renderEventsTable(events) {
     const tbody = document.getElementById('eventsBody');
     if (!events.length) {
@@ -126,15 +130,12 @@ function renderEventsTable(events) {
     }).join('');
 }
 
-// Загрузка архивных событий
 async function loadArchive() {
     const userId = document.getElementById('user_id').value;
     const url = `${API.archive}?user_id=${userId}&limit=100&offset=0`;
     try {
         const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         let events = [];
         if (data.result && Array.isArray(data.result)) {
@@ -151,7 +152,6 @@ async function loadArchive() {
     }
 }
 
-// Отрисовка таблицы архива
 function renderArchiveTable(events) {
     const tbody = document.getElementById('archiveBody');
     if (!events.length) {
@@ -178,7 +178,6 @@ function renderArchiveTable(events) {
     }).join('');
 }
 
-// Создание или обновление события
 document.getElementById('eventForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const eventId = document.getElementById('event_id').value;
@@ -192,9 +191,10 @@ document.getElementById('eventForm').addEventListener('submit', async (e) => {
     if (!title) { alert('Название обязательно'); return; }
     if (!startAtLocal) { alert('Время начала обязательно'); return; }
 
-    const startAt = new Date(startAtLocal).toISOString();
-    const endAt = endAtLocal ? new Date(endAtLocal).toISOString() : null;
-    const reminderAt = reminderAtLocal ? new Date(reminderAtLocal).toISOString() : null;
+    const startAt = localDateTimeToUTC(startAtLocal);
+    if (!startAt) { alert('Неверный формат времени начала'); return; }
+    const endAt = endAtLocal ? localDateTimeToUTC(endAtLocal) : null;
+    const reminderAt = reminderAtLocal ? localDateTimeToUTC(reminderAtLocal) : null;
 
     let url = API.create;
     let method = 'POST';
@@ -222,7 +222,6 @@ document.getElementById('eventForm').addEventListener('submit', async (e) => {
     }
 });
 
-// Редактирование события
 async function editEvent(id) {
     const userId = document.getElementById('user_id').value;
     const date = getCurrentDate();
@@ -261,7 +260,6 @@ function resetForm() {
     document.getElementById('cancelEditBtn').style.display = 'none';
 }
 
-// Удаление события
 async function deleteEventUI(id) {
     if (!confirm('Удалить событие?')) return;
     const userId = parseInt(document.getElementById('user_id').value, 10);
@@ -282,7 +280,6 @@ async function deleteEventUI(id) {
     }
 }
 
-// Показать/скрыть архив
 document.getElementById('showArchivedBtn').addEventListener('click', async () => {
     const container = document.getElementById('archiveContainer');
     if (container.style.display === 'none') {
@@ -297,7 +294,6 @@ document.getElementById('hideArchiveBtn')?.addEventListener('click', () => {
 });
 document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit);
 
-// Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     loadEvents();
     resetRefreshTimer();
@@ -306,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.copyToClipboard = copyToClipboard;
 });
 
-// Вспомогательные функции
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, function(m) {

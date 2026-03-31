@@ -46,6 +46,7 @@ func (c DBConfig) DSN() string {
 	}
 
 	q := url.Values{}
+	q.Set("timezone", "UTC")
 	u.RawQuery = q.Encode()
 
 	return u.String()
