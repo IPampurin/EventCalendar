@@ -227,7 +227,7 @@ func TestHandler_EventsForMonth(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 
 			var resp map[string]interface{}
-			json.Unmarshal(w.Body.Bytes(), &resp)
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 			if tt.wantError != "" {
 				assert.Contains(t, resp["error"], tt.wantError)

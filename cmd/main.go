@@ -22,7 +22,7 @@ func main() {
 	defer application.Close()
 
 	if err := application.Run(); err != nil {
-		log.Printf("приложение завершено с ошибкой: %w", err)
+		log.Printf("приложение завершено с ошибкой: %v", err)
 		os.Exit(1)
 	}
 }
