@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// мок для EventRepository
 type mockRepoForArchiver struct {
 	archiveFunc func(ctx context.Context, mark time.Time) (int, error)
 }
@@ -42,6 +43,7 @@ func (m *mockRepoForArchiver) GetPendingReminders(ctx context.Context, now time.
 	return nil, nil
 }
 
+// потокобезопасный мок-логгер
 type mockLoggerForArchiver struct {
 	mu     sync.Mutex
 	infos  []string
@@ -61,8 +63,29 @@ func (l *mockLoggerForArchiver) Error(msg string, args ...any) {
 func (l *mockLoggerForArchiver) Debug(msg string, args ...any) {}
 func (l *mockLoggerForArchiver) Close() error                  { return nil }
 
-func TestArchiver_Run(t *testing.T) {
+func (l *mockLoggerForArchiver) hasInfo(msg string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, m := range l.infos {
+		if m == msg {
+			return true
+		}
+	}
+	return false
+}
 
+func (l *mockLoggerForArchiver) hasError(msg string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, m := range l.errors {
+		if m == msg {
+			return true
+		}
+	}
+	return false
+}
+
+func TestArchiver_Run(t *testing.T) {
 	t.Run("вызывает ArchiveOlderThan по тикеру и логирует успех", func(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -90,9 +113,9 @@ func TestArchiver_Run(t *testing.T) {
 		cancel()
 		time.Sleep(30 * time.Millisecond)
 
-		assert.Contains(t, log.infos, "архивация выполнена")
-		assert.Contains(t, log.infos, "архиватор запущен")
-		assert.Contains(t, log.infos, "архиватор остановлен")
+		assert.True(t, log.hasInfo("архивация выполнена"))
+		assert.True(t, log.hasInfo("архиватор запущен"))
+		assert.True(t, log.hasInfo("архиватор остановлен"))
 	})
 
 	t.Run("логирует ошибку, если ArchiveOlderThan вернул ошибку", func(t *testing.T) {
@@ -122,7 +145,7 @@ func TestArchiver_Run(t *testing.T) {
 		cancel()
 		time.Sleep(30 * time.Millisecond)
 
-		assert.Contains(t, log.errors, "ошибка архивации")
+		assert.True(t, log.hasError("ошибка архивации"))
 	})
 
 	t.Run("корректно останавливается по отмене контекста", func(t *testing.T) {
@@ -140,7 +163,7 @@ func TestArchiver_Run(t *testing.T) {
 		cancel()
 		time.Sleep(30 * time.Millisecond)
 
-		assert.Contains(t, log.infos, "архиватор остановлен")
+		assert.True(t, log.hasInfo("архиватор остановлен"))
 	})
 
 	t.Run("не вызывает ArchiveOlderThan, если интервал не прошёл", func(t *testing.T) {
