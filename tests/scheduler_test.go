@@ -3,6 +3,7 @@ package tests
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,13 +44,30 @@ func (m *mockRepoForScheduler) GetPendingReminders(ctx context.Context, now time
 }
 
 type mockLoggerSimple struct {
+	mu       sync.Mutex
 	infoMsgs []string
 }
 
-func (l *mockLoggerSimple) Info(msg string, args ...any)  { l.infoMsgs = append(l.infoMsgs, msg) }
+func (l *mockLoggerSimple) Info(msg string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.infoMsgs = append(l.infoMsgs, msg)
+}
+
 func (l *mockLoggerSimple) Error(msg string, args ...any) {}
 func (l *mockLoggerSimple) Debug(msg string, args ...any) {}
 func (l *mockLoggerSimple) Close() error                  { return nil }
+
+func (l *mockLoggerSimple) hasInfo(msg string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, m := range l.infoMsgs {
+		if m == msg {
+			return true
+		}
+	}
+	return false
+}
 
 func TestScheduler_RunAndSchedule(t *testing.T) {
 
@@ -83,14 +101,7 @@ func TestScheduler_RunAndSchedule(t *testing.T) {
 
 		time.Sleep(300 * time.Millisecond)
 
-		found := false
-		for _, msg := range logger.infoMsgs {
-			if msg == "напоминание сработало" {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "сообщение о срабатывании не найдено")
+		assert.True(t, logger.hasInfo("напоминание сработало"))
 	})
 
 	t.Run("Cancel отменяет задачу", func(t *testing.T) {
@@ -113,11 +124,7 @@ func TestScheduler_RunAndSchedule(t *testing.T) {
 
 		time.Sleep(400 * time.Millisecond)
 		// Проверяем, что сообщение не появилось
-		for _, msg := range logger2.infoMsgs {
-			if msg == "напоминание сработало" {
-				t.Fatal("напоминание не должно было сработать после отмены")
-			}
-		}
+		assert.False(t, logger2.hasInfo("напоминание сработало"), "напоминание не должно было сработать после отмены")
 	})
 }
 
@@ -140,12 +147,5 @@ func TestScheduler_RestorePending(t *testing.T) {
 
 	time.Sleep(300 * time.Millisecond)
 
-	found := false
-	for _, msg := range logger.infoMsgs {
-		if msg == "напоминание сработало" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "восстановленное напоминание не сработало")
+	assert.True(t, logger.hasInfo("напоминание сработало"))
 }
